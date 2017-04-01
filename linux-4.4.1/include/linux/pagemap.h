@@ -661,7 +661,9 @@ extern void delete_from_page_cache(struct page *page);
 extern void __delete_from_page_cache(struct page *page, void *shadow,
 				     struct mem_cgroup *memcg);
 int replace_page_cache_page(struct page *old, struct page *new, gfp_t gfp_mask);
-
+#ifdef CONFIG_PONE_MODULE
+extern int replace_pone_page_cache(struct page *old,int offset,struct address_space *mapping,struct page *new,gfp_t mask,int try);
+#endif
 /*
  * Like add_to_page_cache_locked, but used to add newly allocated pages:
  * the page is new, so we can just run __set_page_locked() against it.

@@ -46,6 +46,11 @@
 
 #include <asm/mman.h>
 
+#ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
+#include <pone/pone.h>
+#include <pone/slice_state_adpter.h>
+#endif
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
  * though.
@@ -2730,3 +2735,156 @@ int try_to_release_page(struct page *page, gfp_t gfp_mask)
 }
 
 EXPORT_SYMBOL(try_to_release_page);
+
+#ifdef CONFIG_PONE_MODULE
+
+static void pone_cache_tree_delete(struct address_space *mapping,
+				   struct page *page, int offset)
+{
+	struct radix_tree_node *node;
+	unsigned long index;
+	unsigned int tag;
+	void **slot;
+
+	VM_BUG_ON(!PageLocked(page));
+
+	__radix_tree_lookup(&mapping->page_tree, offset, &node, &slot);
+
+	mapping->nrpages--;
+
+	if (!node) {
+		/* Clear direct pointer tags in root node */
+		mapping->page_tree.gfp_mask &= __GFP_BITS_MASK;
+		radix_tree_replace_slot(slot, NULL);
+		return;
+	}
+
+	/* Clear tree tags for the removed page */
+	index = offset;
+	offset = index & RADIX_TREE_MAP_MASK;
+	for (tag = 0; tag < RADIX_TREE_MAX_TAGS; tag++) {
+		if (test_bit(offset, node->tags[tag]))
+			radix_tree_tag_clear(&mapping->page_tree, index, tag);
+	}
+
+	/* Delete page, swap shadow entry */
+	radix_tree_replace_slot(slot, NULL);
+	if (__radix_tree_delete_node(&mapping->page_tree, node))
+		return;
+}
+
+void __delete_pone_page_cache(struct page *page,int offset,struct address_space *mapping,struct mem_cgroup *memcg)
+{
+	trace_mm_filemap_delete_from_page_cache(page);
+	/*
+	 * if we're uptodate, flush out into the cleancache, otherwise
+	 * invalidate any existing cleancache entries.  We can't leave
+	 * stale data around in the cleancache once our page is gone
+	 */
+	if (PageUptodate(page) && PageMappedToDisk(page))
+		cleancache_put_page(page);
+	else
+		cleancache_invalidate_page(mapping, page);
+
+	printk("slice delete cache inde %d,%ld\r\n",offset,page_to_pfn(page));
+	pone_cache_tree_delete(mapping, page, offset);
+	
+	/* Leave page->index set: truncation lookup relies upon it */
+
+	/* hugetlb pages do not participate in page cache accounting. */
+	if (!PageHuge(page))
+		__dec_zone_page_state(page, NR_FILE_PAGES);
+	if (PageSwapBacked(page))
+		__dec_zone_page_state(page, NR_SHMEM);
+
+	/*
+	 * At this point page must be either written or cleaned by truncate.
+	 * Dirty page here signals a bug and loss of unwritten data.
+	 *
+	 * This fixes dirty accounting after removing the page entirely but
+	 * leaves PageDirty set: it has no effect for truncated page and
+	 * anyway will be cleared before returning page into buddy allocator.
+	 */
+	if (WARN_ON_ONCE(PageDirty(page)))
+		account_page_cleaned(page, mapping, memcg,
+				     inode_to_wb(mapping->host));
+}
+
+int replace_pone_page_cache(struct page* old,int offset,struct address_space *mapping,struct page* new,gfp_t gfp_mask,int try)
+{
+	int error;
+	unsigned long long new_state = 0;
+	unsigned long new_slice_idx = page_to_pfn(new);
+	int new_nid ;
+	unsigned long new_slice_id;
+	VM_BUG_ON_PAGE(!PageLocked(old), old);
+
+	error = radix_tree_preload(gfp_mask & ~__GFP_HIGHMEM);
+	if (!error) {
+		void (*freepage)(struct page *);
+		struct mem_cgroup *memcg;
+		unsigned long flags;
+		freepage = mapping->a_ops->freepage;
+		
+		memcg = mem_cgroup_begin_page_stat(old);
+		if(try)
+		{
+			if(!spin_trylock_irqsave(&mapping->tree_lock,flags))
+			{
+				return -1;
+			}
+		}
+		else
+		{
+			spin_lock_irqsave(&mapping->tree_lock,flags);
+		}
+		
+		{
+			new_nid = slice_idx_to_node(new_slice_idx);
+
+			new_slice_id = slice_nr_in_node(new_nid,new_slice_idx);
+
+			new_state = get_slice_state(new_nid,new_slice_id);
+
+			if(SLICE_FIX == new_state){
+				/*merge case*/
+				__delete_pone_page_cache(old,offset,mapping,memcg);
+				page_cache_get(new);
+				atomic_add(1,&new->_mapcount);
+
+
+			}else if(SLICE_IDLE == new_state){
+				/*cow case*/
+				__delete_pone_page_cache(old,offset,mapping,memcg);
+				
+			}else {
+				page_cache_release(new);
+				atomic_sub(1,&new->_mapcount);
+				return -1;			
+			}
+		}
+		printk("replace pone index %d,new slice %ld\r\n",offset,page_to_pfn(new));	
+		error = radix_tree_insert(&mapping->page_tree, offset, new);
+		BUG_ON(error);
+		mapping->nrpages++;
+
+		if (!PageHuge(new))
+			__inc_zone_page_state(new, NR_FILE_PAGES);
+		if (PageSwapBacked(new))
+			__inc_zone_page_state(new, NR_SHMEM);
+		spin_unlock_irqrestore(&mapping->tree_lock, flags);
+		mem_cgroup_end_page_stat(memcg);
+		mem_cgroup_replace_page(old, new);
+		radix_tree_preload_end();
+		if (freepage)
+			freepage(old);
+		page_cache_release(old);
+	}
+
+	return error;
+
+
+}
+#endif
+
+

@@ -255,6 +255,16 @@ struct rmap_walk_control {
 
 int rmap_walk(struct page *page, struct rmap_walk_control *rwc);
 
+#ifdef CONFIG_PONE_MODULE
+pte_t *__page_try_check_address(struct page *page,struct mm_struct *mm,
+		unsigned long address,spinlock_t **ptlp,int sync);
+pte_t *__page_get_pte_address(struct page *page,struct mm_struct *mm,
+		unsigned long address);
+struct anon_vma *page_try_lock_anon_vma_read(struct page *page);
+
+int rmap_walk_pone(struct page *page, struct rmap_walk_control *rwc);
+
+#endif
 #else	/* !CONFIG_MMU */
 
 #define anon_vma_init()		do {} while (0)

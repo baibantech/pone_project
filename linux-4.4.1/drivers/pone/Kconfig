@@ -1,0 +1,2 @@
+config PONE_MODULE
+        bool "Pone page merge moudle"
