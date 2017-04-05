@@ -4,6 +4,7 @@
 #include <linux/atomic.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
+#include <linux/vmalloc.h>
 #include <asm-generic/pgtable.h>
 #include <linux/bootmem.h>
 #include <linux/ksm.h>
@@ -47,7 +48,7 @@ void free_slice_state_control(slice_state_control_block *blk)
         {
             if(blk->slice_node[i].slice_state_map)
             {
-                kfree((void*)blk->slice_node[i].slice_state_map);
+                vfree((void*)blk->slice_node[i].slice_state_map);
             }
         }
         kfree(blk);
@@ -63,8 +64,11 @@ int slice_state_map_init(slice_state_control_block *blk)
         long long mem_size = ((((slice_num *SLICE_STATE_BITS)/8) /sizeof(unsigned long long)) +1)*sizeof(unsigned long long);
         if(slice_num > 0)
         {
-            blk->slice_node[i].slice_state_map = kmalloc(mem_size,GFP_KERNEL);    
-            if(!blk->slice_node[i].slice_state_map)
+            printk("mem_size is 0x%llx,order is %d\r\n",mem_size,get_order(mem_size));
+			//blk->slice_node[i].slice_state_map = kmalloc(mem_size,GFP_KERNEL);    
+			blk->slice_node[i].slice_state_map = vmalloc(mem_size);    
+            
+			if(!blk->slice_node[i].slice_state_map)
             {
                 free_slice_state_control(blk);
                 return -1;

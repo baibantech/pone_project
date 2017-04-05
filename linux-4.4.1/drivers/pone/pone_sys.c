@@ -66,7 +66,7 @@ int pone_hash_table_show(char *buf)
 			len += sprintf(buf,"-----------crc %x info-----------\r\n",i);
 			hlist_for_each_entry(pos,&pone_hash_table[i].head,hlist);
 			{
-				len += sprintf(buf,"slice idx %lld.user_count %d\r\n",pos->slice_idx,pos->user_count);
+				len += sprintf(buf,"slice idx %ld.user_count %d\r\n",pos->slice_idx,pos->user_count);
 				user_count_sum += pos->user_count;
 			}
 		}

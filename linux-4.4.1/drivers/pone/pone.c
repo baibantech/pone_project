@@ -14,7 +14,7 @@
 
 struct pone_hash_head*  pone_hash_table = NULL;
  
-static u32 calc_checksum(char *addr,int len)
+static u32 calc_checksum(void *addr,int len)
 {
     u32 checksum;
     checksum = jhash2(addr, len / 4, 13);
