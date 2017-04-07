@@ -968,8 +968,8 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	kasan_free_pages(page, order);
 
 #ifdef CONFIG_PONE_MODULE
-	for (i = 1; i < (1 << order); i++) {
-		if(0 != process_slice_state(page_to_pfn(page+i-1),SLICE_FREE,page+i-1))  
+	for (i = 0; i < (1 << order); i++) {
+		if(0 != process_slice_state(page_to_pfn(page+i),SLICE_FREE,page+i))  
 		{	
 			return false;
 		}

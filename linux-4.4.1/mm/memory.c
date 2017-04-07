@@ -2077,6 +2077,9 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 	const unsigned long mmun_start = address & PAGE_MASK;	/* For mmu_notifiers */
 	const unsigned long mmun_end = mmun_start + PAGE_SIZE;	/* For mmu_notifiers */
 	struct mem_cgroup *memcg;
+	#ifdef CONFIG_PONE_MODULE
+	struct page *op_page = NULL;
+	#endif
 
 	if (unlikely(anon_vma_prepare(vma)))
 		goto oom;
@@ -2090,6 +2093,9 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		if (!new_page)
 			goto oom;
 		cow_user_page(new_page, old_page, address, vma);
+		#ifdef CONFIG_PONE_MODULE
+		op_page = new_page;
+		#endif
 	}
 
 	if (mem_cgroup_try_charge(new_page, mm, GFP_KERNEL, &memcg))
@@ -2125,10 +2131,12 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_add_new_anon_rmap(new_page, vma, address);
 		mem_cgroup_commit_charge(new_page, memcg, false);
 		lru_cache_add_active_or_unevictable(new_page, vma);
-		#if CONFIG_PONE_MODULE
+		#ifdef CONFIG_PONE_MODULE
 		if(process_slice_check())
 		{
-			process_slice_state(page_to_pfn(new_page),SLICE_ALLOC,new_page);
+			if(op_page)
+			process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page);
+			
 		}
 		#endif
 		

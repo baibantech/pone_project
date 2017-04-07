@@ -129,6 +129,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	int len = 0;
 	int cpu;
 	lfrwq_reader *reader = NULL;
+#if 0
 	if(slice_que)	
 	{	
 		len += sprintf(buf +len ,"slice_que info\r\n");
@@ -159,7 +160,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 		reader = &per_cpu(int_slice_watch_que_reader,cpu);
 		len += lfrwq_reader_info_get(reader,buf+len);
 	}
-	
+#endif
 	len += sprintf(buf +len ,"slice que process count is %lld\r\n",process_que_num);
 	
 	len += sprintf(buf +len ,"slice alloc count is %lld\r\n",slice_alloc_num);

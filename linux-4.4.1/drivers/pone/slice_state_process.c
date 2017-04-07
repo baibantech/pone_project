@@ -209,7 +209,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 		{
 			/* data is the struct page* */
 			//printk("slice op is SLICE_ALLOC\r\n");
-			printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
+			//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
 			do
 			{
@@ -318,7 +318,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					break;
 				}	
 				struct page *page = pfn_to_page(slice_idx);
-				printk("slice out que page count is %d\r\n",*(int*)&page->_count);
+				//printk("slice out que page count is %d\r\n",*(int*)&page->_count);
 				if(SLICE_IDLE == cur_state){
 					/*page free by sys*/
 					free_slice(slice_idx);
@@ -396,7 +396,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				if(!slice_watch_que_debug) return 0;
 
 				struct page *page = pfn_to_page(slice_idx);
-				printk("slice out watch que page count is %d\r\n",*(int*)&page->_count);
+				//printk("slice out watch que page count is %d\r\n",*(int*)&page->_count);
 				if(SLICE_IDLE == cur_state){
 					free_slice(slice_idx);
 					ret = 0;
@@ -472,11 +472,12 @@ int process_slice_check(void)
 
 #if 0
 	if(1 == atomic64_add_return(1,(atomic64_t*)&alloc_check))	
-#endif	
 	if(0 == strcmp(current->comm,src))	
 		return 1;
 	else
 		return 0;
+#endif
+	return 1;
 }
 
 int process_slice_file_check(unsigned long i_ino)
