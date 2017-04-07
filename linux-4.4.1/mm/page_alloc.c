@@ -66,6 +66,11 @@
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
+
+#ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state_adpter.h>
+#endif
+
 #include "internal.h"
 
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
@@ -961,6 +966,15 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	trace_mm_page_free(page, order);
 	kmemcheck_free_shadow(page, order);
 	kasan_free_pages(page, order);
+
+#ifdef CONFIG_PONE_MODULE
+	for (i = 1; i < (1 << order); i++) {
+		if(0 != process_slice_state(page_to_pfn(page+i-1),SLICE_FREE,page+i-1))  
+		{	
+			return false;
+		}
+	}
+#endif
 
 	if (PageAnon(page))
 		page->mapping = NULL;

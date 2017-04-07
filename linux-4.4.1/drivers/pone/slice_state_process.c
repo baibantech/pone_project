@@ -39,6 +39,7 @@ unsigned long long slice_file_cow = 0;
 unsigned long long slice_file_watch_chg = 0;
 unsigned long long slice_file_fix_chg = 0;
 extern unsigned long pone_file_watch ;
+int ljy_printk_count = 0;
 void free_slice_state_control(slice_state_control_block *blk)
 {
     if(blk)
@@ -61,7 +62,7 @@ int slice_state_map_init(slice_state_control_block *blk)
     for (i =0 ; i < blk->node_num ; i++)
     {
         long long slice_num = blk->slice_node[i].slice_num;
-        long long mem_size = ((((slice_num *SLICE_STATE_BITS)/8) /sizeof(unsigned long long)) +1)*sizeof(unsigned long long);
+        long long mem_size = ((slice_num/SLICE_NUM_PER_UNIT)+1)*sizeof(unsigned long long);
         if(slice_num > 0)
         {
             printk("mem_size is 0x%llx,order is %d\r\n",mem_size,get_order(mem_size));
@@ -74,7 +75,8 @@ int slice_state_map_init(slice_state_control_block *blk)
                 return -1;
             }
 			printk("nid is %d ,map addr is %p \r\n",i,blk->slice_node[i].slice_state_map);
-            memset(blk->slice_node[i].slice_state_map,0,mem_size);           
+            blk->slice_node[i].mem_size = mem_size;
+			memset(blk->slice_node[i].slice_state_map,0,mem_size);           
         }
     }
     return 0;
@@ -200,7 +202,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 
 	nid = slice_idx_to_node(slice_idx);
 	slice_id = slice_nr_in_node(nid,slice_idx);
-	
+		
 	switch(op)
     {
         case SLICE_ALLOC:
@@ -280,6 +282,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			do
 			{
 				/* slice state is fix or watch*/
+				//printk("slice change slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 				cur_state = get_slice_state(nid,slice_id);
 				if(SLICE_WATCH == cur_state){
 					atomic64_add(1,(atomic64_t*)&slice_mem_watch_change);

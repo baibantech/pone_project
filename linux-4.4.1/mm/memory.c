@@ -69,6 +69,9 @@
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
+#ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
+#endif
 
 #include "internal.h"
 
@@ -2012,6 +2015,12 @@ static inline int wp_page_reuse(struct mm_struct *mm,
 	if (ptep_set_access_flags(vma, address, page_table, entry, 1))
 		update_mmu_cache(vma, address, page_table);
 	pte_unmap_unlock(page_table, ptl);
+	#ifdef CONFIG_PONE_MODULE
+#if 1
+	if(page)
+		process_slice_state(page_to_pfn(page),SLICE_CHANGE,page);	
+#endif	
+#endif
 
 	if (dirty_shared) {
 		struct address_space *mapping;
@@ -2116,6 +2125,14 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_add_new_anon_rmap(new_page, vma, address);
 		mem_cgroup_commit_charge(new_page, memcg, false);
 		lru_cache_add_active_or_unevictable(new_page, vma);
+		#if CONFIG_PONE_MODULE
+		if(process_slice_check())
+		{
+			process_slice_state(page_to_pfn(new_page),SLICE_ALLOC,new_page);
+		}
+		#endif
+		
+
 		/*
 		 * We call the notify macro here because, when using secondary
 		 * mmu page tables (such as kvm shadow page tables), we want the
@@ -2733,6 +2750,12 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	page_add_new_anon_rmap(page, vma, address);
 	mem_cgroup_commit_charge(page, memcg, false);
 	lru_cache_add_active_or_unevictable(page, vma);
+#if CONFIG_PONE_MODULE
+	if(process_slice_check())
+	{
+		process_slice_state(page_to_pfn(page),SLICE_ALLOC,page);
+	}
+#endif
 setpte:
 	set_pte_at(mm, address, page_table, entry);
 

@@ -55,6 +55,9 @@
 #include <asm/mce.h>
 #include <asm/tsc.h>
 #include <asm/hypervisor.h>
+#ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state_adpter.h>
+#endif
 
 unsigned int num_processors;
 
@@ -899,6 +902,10 @@ static void local_apic_timer_interrupt(void)
 	inc_irq_stat(apic_timer_irqs);
 
 	evt->event_handler(evt);
+#ifdef CONFIG_PONE_MODULE
+	process_que_interrupt(cpu);
+#endif
+
 }
 
 /*

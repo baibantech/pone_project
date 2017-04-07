@@ -33,6 +33,7 @@ typedef struct slice_node_desc
     long long slice_start;
     long long slice_num;
     volatile unsigned long long *slice_state_map;
+	long long mem_size;
 }slice_node_desc;
 
 typedef struct slice_state_control_block
@@ -83,11 +84,25 @@ static inline unsigned long slice_nr_in_node(int nid,unsigned long slice_idx)
 {
     return slice_idx - global_block->slice_node[nid].slice_start;
 }
-
+extern int ljy_printk_count ;
+static inline int check_map_addr(void *addr,unsigned int nid,unsigned long long slice_id)
+{
+	if((unsigned long )addr < (unsigned long)(void*)global_block->slice_node[nid].slice_state_map)
+	{
+		return 1;
+	}
+	if((unsigned long)addr >(unsigned long)(void*)global_block->slice_node[nid].slice_state_map + global_block->slice_node[nid].mem_size)
+	{
+		return 1;
+	}
+	return 0;
+}
 static inline unsigned long long   get_slice_state(unsigned int nid,unsigned long long slice_id)
 {
-    unsigned long long state_unit = *(global_block->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT));
-    int offset = slice_id%SLICE_NUM_PER_UNIT;
+	unsigned long long state_unit = 0;
+	int offset;
+	state_unit = *(global_block->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT));
+    offset = slice_id%SLICE_NUM_PER_UNIT;
     return  (state_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK;
 }
 
