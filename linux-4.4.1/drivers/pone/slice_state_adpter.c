@@ -346,8 +346,9 @@ void slice_que_reader_init(void)
 	return ;
 }
 
-void process_que_interrupt(int cpu)
+void process_que_interrupt(void)
 {
+	int cpu = smp_processor_id();
 	lfrwq_reader *reader = &per_cpu(int_slice_watch_que_reader,cpu);
 	process_que_num++;
 //	if(cpu ==1000)

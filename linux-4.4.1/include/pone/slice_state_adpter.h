@@ -30,7 +30,7 @@ extern int change_reverse_ref(unsigned long slice_idx,unsigned long new_slie);
 extern bool free_slice_check(unsigned long slice_idx);
 extern void slice_que_reader_init(void);
 extern void slice_merge_timer_init(unsigned long ms);
-extern void process_que_interrupt(int cpu);
+extern void process_que_interrupt(void);
 extern int slice_file_write_proc(struct address_space *space,unsigned long offset);
 struct page* slice_file_replace_proc(struct address_space *mapping,unsigned long index,struct page *page);
 DECLARE_PER_CPU(lfrwq_reader,int_slice_que_reader);

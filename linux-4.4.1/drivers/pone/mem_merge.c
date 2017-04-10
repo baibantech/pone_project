@@ -167,7 +167,7 @@ int merge_dev_init(void)
 }
 void merge_dev_exit(void)
 {
-    unregister_chrdev_region(MKDEV(merge_dev_major,0),1);
+unregister_chrdev_region(MKDEV(merge_dev_major,0),1);
     if(merge_cdev)
     {
         cdev_del(merge_cdev);        
@@ -199,6 +199,7 @@ static int __init merge_mem_init(void)
 {
 	slice_que_resource_init();
 	slice_que_reader_init();
+	open_softirq(PONE_SOFTIRQ,process_que_interrupt);
 	pone_hash_table_init(0x10000);
 	slice_state_control_init();
 	slice_merge_timer_init(1000);

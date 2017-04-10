@@ -1847,8 +1847,12 @@ static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
 		struct vm_area_struct *vma = avc->vma;
 		unsigned long address = vma_address(page, vma);
+		if(31 == lock_num)
+		{
+			goto free_lock;
+		}
 		pte[lock_num] = __page_try_check_address(page, vma->vm_mm,address, &ptl[lock_num],0);
-		if((NULL == pte[lock_num])|| (31 == lock_num))
+		if((NULL == pte[lock_num]))
 		{
 			goto free_lock;
 		}
@@ -1869,8 +1873,9 @@ static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 	ret = SWAP_SUCCESS;
 	
 free_lock:
-	for (i = 0 ; i < lock_num; i++)
+	for (i = 0 ; i <= lock_num; i++)
 	{
+		if(pte[i]!=NULL)
 		pte_unmap_unlock(pte[i], ptl[i]);
 	}
 	anon_vma_unlock_read(anon_vma);

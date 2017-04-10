@@ -417,6 +417,7 @@ enum
 	SCHED_SOFTIRQ,
 	HRTIMER_SOFTIRQ, /* Unused, but kept as tools rely on the
 			    numbering. Sigh! */
+	PONE_SOFTIRQ,
 	RCU_SOFTIRQ,    /* Preferable RCU should always be the last softirq */
 
 	NR_SOFTIRQS

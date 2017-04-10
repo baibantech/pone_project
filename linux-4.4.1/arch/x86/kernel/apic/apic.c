@@ -56,7 +56,7 @@
 #include <asm/tsc.h>
 #include <asm/hypervisor.h>
 #ifdef CONFIG_PONE_MODULE
-#include <pone/slice_state_adpter.h>
+#include <pone/slice_state.h>
 #endif
 
 unsigned int num_processors;
@@ -903,7 +903,10 @@ static void local_apic_timer_interrupt(void)
 
 	evt->event_handler(evt);
 #ifdef CONFIG_PONE_MODULE
-	process_que_interrupt(cpu);
+	if(is_pone_init())
+	{
+		__raise_softirq_irqoff(PONE_SOFTIRQ);
+	}
 #endif
 
 }

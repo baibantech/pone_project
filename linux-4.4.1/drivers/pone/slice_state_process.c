@@ -40,6 +40,12 @@ unsigned long long slice_file_watch_chg = 0;
 unsigned long long slice_file_fix_chg = 0;
 extern unsigned long pone_file_watch ;
 int ljy_printk_count = 0;
+int global_pone_init = 0;
+int is_pone_init(void)
+{
+	return global_pone_init;
+}
+
 void free_slice_state_control(slice_state_control_block *blk)
 {
     if(blk)
@@ -79,6 +85,7 @@ int slice_state_map_init(slice_state_control_block *blk)
 			memset(blk->slice_node[i].slice_state_map,0,mem_size);           
         }
     }
+	global_pone_init = 1;
     return 0;
 }
 
@@ -407,6 +414,16 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				else if (SLICE_WATCH == cur_state)
 				{
 					//printk("insert sd tree\r\n");
+
+#if 0
+						if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_FIX)){
+							atomic64_add(1,(atomic64_t*)&slice_new_insert_num);
+							//printk("slice_idx is new insert ok\r\n");
+							ret = 0;
+
+							break;
+						}
+#endif
 #if 1
 					pone = insert_sd_tree(slice_idx);
 					if(NULL == pone){
