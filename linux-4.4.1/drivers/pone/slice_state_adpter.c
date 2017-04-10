@@ -143,7 +143,7 @@ int delete_fix_slice(unsigned long slice_idx)
     struct page *page = pfn_to_page(slice_idx);
 
     addr = kmap_atomic(page);
-    ret = pone_delete(addr, PAGE_SIZE,slice_idx);
+    //ret = pone_delete(addr, PAGE_SIZE,slice_idx);
     kunmap_atomic(addr); 
 	
 	return ret;
@@ -264,7 +264,7 @@ int  change_reverse_ref(unsigned long slice_idx,unsigned long new_slice)
     struct rmap_walk_control rwc = {
         .rmap_one =  change_reverse_ref_one,
         .arg = (void*)new_page,
-        .anon_lock = page_lock_anon_vma_read,
+        .anon_lock = page_try_lock_anon_vma_read,
     };
 
     if (!page_rmapping(page))/*map_count*/
@@ -350,9 +350,12 @@ void process_que_interrupt(int cpu)
 {
 	lfrwq_reader *reader = &per_cpu(int_slice_watch_que_reader,cpu);
 	process_que_num++;
-	process_state_que(slice_watch_que,reader);
-	reader = &per_cpu(int_slice_que_reader,cpu);
-	process_state_que(slice_que,reader);
+//	if(cpu ==1000)
+	{
+		process_state_que(slice_watch_que,reader);
+		reader = &per_cpu(int_slice_que_reader,cpu);
+		process_state_que(slice_que,reader);
+	}
 	return;
 }
 

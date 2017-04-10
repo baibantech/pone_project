@@ -168,12 +168,12 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
 
 int slice_que_resource_init(void)
 {
-    slice_que = lfrwq_init(8192,512,6);
+    slice_que = lfrwq_init(8192,512,50);
     if(!slice_que)
     {
         return -1;
     }
-    slice_watch_que = lfrwq_init(8192,512,6);
+    slice_watch_que = lfrwq_init(8192,512,50);
     if(!slice_watch_que)
     {
         kfree(slice_que);
@@ -211,6 +211,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			//printk("slice op is SLICE_ALLOC\r\n");
 			//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
+#if 1
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -231,7 +232,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}
 
 			}while(1);
-
+#endif
 			break;
 		}
         
@@ -323,6 +324,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					/*page free by sys*/
 					free_slice(slice_idx);
 					ret = 0;
+					break;
 				}
 				else if(SLICE_ENQUE == cur_state){
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
@@ -332,7 +334,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 							if(0 != lfrwq_inq(slice_watch_que,data))
 							{
 								atomic64_add(1,(atomic64_t*)&slice_in_watch_que_err);
-								printk("in watch que err\r\n");
+								//printk("in watch que err\r\n");
 							}
 							else
 							{
@@ -405,6 +407,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				else if (SLICE_WATCH == cur_state)
 				{
 					//printk("insert sd tree\r\n");
+#if 1
 					pone = insert_sd_tree(slice_idx);
 					if(NULL == pone){
 						break;
@@ -438,6 +441,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 							break;
 						}
 					}
+#endif
 				}
 				else if(SLICE_WATCH_CHG == cur_state){
 					
@@ -491,6 +495,7 @@ int process_slice_file_check(unsigned long i_ino)
 int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
 {
 	void *msg = NULL;
+	int process_cnt = 0;
 	unsigned long long r_idx = 0;
 	if((!qh) || (!reader))
 	{
@@ -556,7 +561,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
                 }
                 else
                 {
-                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg);
+                    //process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg);
                 }
 #endif
                 if(0 == reader->r_cnt)
@@ -573,7 +578,12 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
                     }
                 }
                 reader->r_cnt++;
-            }
+				
+				if(process_cnt++ >40)
+				{
+					break;
+				}
+			}
         }
         
         if(reader->r_cnt)
@@ -581,6 +591,10 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
             lfrwq_add_rcnt(qh,reader->r_cnt,reader->local_blk);
             reader->r_cnt = 0 ;
         }
+		if(process_cnt++ >40)
+		{
+			break;
+		}
 
     }while(1);
     

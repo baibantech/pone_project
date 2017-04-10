@@ -177,8 +177,8 @@ int lfrwq_inq(lfrwq_t *qh,void *data)
         rd_cnt = qh->r_cnt[blk_idx];
         if((rd_cnt >> qh->blk_pow) < laps)
         {
-            printk("blk idex is %d,rd_cnt is %lld\r\n",blk_idx,rd_cnt);
-            printk("r_idx is %lld\r\n",qh->r_idx);
+            //printk("blk idex is %d,rd_cnt is %lld\r\n",blk_idx,rd_cnt);
+            //printk("r_idx is %lld\r\n",qh->r_idx);
             return -1 ;
         }
         idx = atomic64_cmpxchg((atomic64_t *)&qh->w_idx ,w_idx,w_idx+1);
