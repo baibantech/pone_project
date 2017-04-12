@@ -39,7 +39,8 @@ extern unsigned long long slice_file_watch_chg;
 extern unsigned long long slice_file_fix_chg;
 extern unsigned long long slice_file_chgref_num;
 extern struct pone_hash_head *pone_hash_table;
-
+extern unsigned long long rmap_rwsem_count;
+extern unsigned long long rmap_rwsem_release_count;
 #ifdef CONFIG_SYSFS
 
 #define PONE_ATTR_RO(_name) \
@@ -48,7 +49,7 @@ extern struct pone_hash_head *pone_hash_table;
 		static struct kobj_attribute _name##_attr = \
 		__ATTR(_name, 0644, _name##_show, _name##_store)
 
-
+extern int pone_case_init(void);
 int pone_hash_table_show(char *buf)
 {
 	int i = 0;
@@ -179,8 +180,10 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice file watch chg is %lld\r\n",slice_file_watch_chg);
 	len += sprintf(buf +len ,"slice file fix chg is %lld\r\n",slice_file_fix_chg);
 	len += sprintf(buf +len ,"slice file chg ref is %lld\r\n",slice_file_chgref_num);
-	len += slice_file_info_get(buf+len);
+	len += sprintf(buf +len ,"rwsem count is %lld\r\n",rmap_rwsem_count);
+	len += sprintf(buf +len ,"rwsem release count  is %lld\r\n",rmap_rwsem_release_count);
 
+	len += slice_file_info_get(buf+len);
 	return len;
 
 }
@@ -221,7 +224,18 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 	unsigned long store_tmp = 0;	
 	err =  kstrtoul(buf,10,&store_tmp);
 	printk("store_tmp is %ld\r\n",store_tmp);
-	pone_file_watch = store_tmp;
+	//pone_file_watch = store_tmp;
+	if(1 ==store_tmp)
+	{
+		slice_que_debug = 0;
+
+	}
+	if(store_tmp >1)
+	{
+		slice_watch_que_debug =0;
+		slice_que_debug = 0;
+	}
+
 	return count;
 }
 PONE_ATTR(pone_debug);

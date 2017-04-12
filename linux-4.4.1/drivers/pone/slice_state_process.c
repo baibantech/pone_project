@@ -33,6 +33,10 @@ unsigned long long slice_free_num = 0;
 unsigned long long slice_mem_watch_change= 0;
 unsigned long long slice_mem_fix_change = 0;
 
+unsigned long long slice_mem_que_free =0;
+unsigned long long slice_mem_watch_free = 0;
+
+
 unsigned long long slice_file_protect_num = 0;
 unsigned long long slice_file_chgref_num = 0;
 unsigned long long slice_file_cow = 0;
@@ -217,6 +221,10 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			/* data is the struct page* */
 			//printk("slice op is SLICE_ALLOC\r\n");
 			//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
+			if(!slice_que_debug)
+			{
+				return 0;
+			}
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
 #if 1
 			do
@@ -330,6 +338,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				if(SLICE_IDLE == cur_state){
 					/*page free by sys*/
 					free_slice(slice_idx);
+					atomic64_add(1,(atomic64_t*)&slice_mem_que_free);
 					ret = 0;
 					break;
 				}
@@ -409,6 +418,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				if(SLICE_IDLE == cur_state){
 					free_slice(slice_idx);
 					ret = 0;
+					atomic64_add(1,(atomic64_t*)&slice_mem_watch_free);
 					break;
 				}
 				else if (SLICE_WATCH == cur_state)
@@ -578,7 +588,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
                 }
                 else
                 {
-                    //process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg);
+                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg);
                 }
 #endif
                 if(0 == reader->r_cnt)

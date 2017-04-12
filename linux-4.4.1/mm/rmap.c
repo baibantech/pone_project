@@ -1811,14 +1811,24 @@ struct anon_vma *page_try_lock_anon_vma_read(struct page *page)
 
 	anon_vma = (struct anon_vma *) (anon_mapping - PAGE_MAPPING_ANON);
 	root_anon_vma = READ_ONCE(anon_vma->root);
+	
+	if(!atomic_inc_not_zero(&anon_vma->refcount))
+	{
+		anon_vma = NULL;
+		goto out;
+	}
+	
 	if (down_read_trylock(&root_anon_vma->rwsem)) {
 		/*
 		 * If the page is still mapped, then this anon_vma is still
 		 * its anon_vma, and holding the mutex ensures that it will
 		 * not go away, see anon_vma_free().
 		 */
+		
+
 		if (!page_mapped(page)) {
 			up_read(&root_anon_vma->rwsem);
+			put_anon_vma(anon_vma);
 			anon_vma = NULL;
 		}
 		goto out;
@@ -1828,7 +1838,8 @@ out:
 	rcu_read_unlock();
 	return anon_vma;
 }
-
+unsigned long long rmap_rwsem_count = 0;
+unsigned long long rmap_rwsem_release_count = 0;
 static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 {
 	struct anon_vma *anon_vma;
@@ -1837,17 +1848,17 @@ static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 	int ret = SWAP_FAIL;
 	int lock_num = 0;
 	int i = 0;
-	pte_t  *pte[32] = { NULL};
-	spinlock_t *ptl[32] = {NULL};
+	pte_t  *pte[128] = { NULL};
+	spinlock_t *ptl[128] = {NULL};
 
 	anon_vma = rmap_walk_anon_lock(page, rwc);
 	if (!anon_vma)
 		return ret;
-
+	atomic64_add(1,(atomic64_t*)&rmap_rwsem_count);
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
 		struct vm_area_struct *vma = avc->vma;
 		unsigned long address = vma_address(page, vma);
-		if(31 == lock_num)
+		if(127 == lock_num)
 		{
 			goto free_lock;
 		}
@@ -1878,7 +1889,10 @@ free_lock:
 		if(pte[i]!=NULL)
 		pte_unmap_unlock(pte[i], ptl[i]);
 	}
+
+	atomic64_add(1,(atomic64_t*)&rmap_rwsem_release_count);
 	anon_vma_unlock_read(anon_vma);
+	put_anon_vma(anon_vma);
 	return ret;
 }
 

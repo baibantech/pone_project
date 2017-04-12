@@ -67,7 +67,6 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
 {
     pte_t *ptep;
-    int ret = 0;
 
     if(PageAnon(page))
 	{
@@ -75,7 +74,7 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
  
 		ptep =  __page_get_pte_address(page, mm, addr);
 		if (!ptep)
-			return -1;
+			return 0;
 
 		if (pte_write(*ptep) || pte_dirty(*ptep)) {
 			pte_t entry;
@@ -94,7 +93,7 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	{
 		atomic64_add(1,(atomic64_t*)&slice_file_protect_num);	
 	}
-	return ret;
+	return 0;
 }
 int make_slice_wprotect(unsigned long slice_idx)
 {
@@ -143,7 +142,7 @@ int delete_fix_slice(unsigned long slice_idx)
     struct page *page = pfn_to_page(slice_idx);
 
     addr = kmap_atomic(page);
-    //ret = pone_delete(addr, PAGE_SIZE,slice_idx);
+    ret = pone_delete(addr, PAGE_SIZE,slice_idx);
     kunmap_atomic(addr); 
 	
 	return ret;
@@ -326,11 +325,13 @@ void slice_merge_timer_init(unsigned long time_ms)
 
 DEFINE_PER_CPU(lfrwq_reader , int_slice_que_reader);
 DEFINE_PER_CPU(lfrwq_reader , int_slice_watch_que_reader);
+DEFINE_PER_CPU(int,process_enter_check);
 unsigned long long process_que_num = 0;
 void slice_que_reader_init(void)
 {
 	int cpu ;
 	lfrwq_reader *reader = NULL;
+	int *check = NULL;
 	for_each_online_cpu(cpu)
 	{
 		reader = &per_cpu(int_slice_que_reader,cpu);
@@ -343,20 +344,28 @@ void slice_que_reader_init(void)
 		memset(reader,0,sizeof(lfrwq_reader));
 		reader->local_idx = -1;
 	}
+	for_each_online_cpu(cpu)
+	{
+		check  = &per_cpu(process_enter_check,cpu);
+		*check = 0;
+	}
 	return ;
 }
 
 void process_que_interrupt(void)
 {
 	int cpu = smp_processor_id();
+	int *check  = &per_cpu(process_enter_check,cpu);
 	lfrwq_reader *reader = &per_cpu(int_slice_watch_que_reader,cpu);
 	process_que_num++;
-//	if(cpu ==1000)
+	if(*check == 0)
 	{
+		*check = 1;
 		process_state_que(slice_watch_que,reader);
 		reader = &per_cpu(int_slice_que_reader,cpu);
 		process_state_que(slice_que,reader);
 	}
+	*check = 0;
 	return;
 }
 
