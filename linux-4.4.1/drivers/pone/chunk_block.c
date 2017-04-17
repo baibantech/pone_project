@@ -23,7 +23,6 @@ void vec_buf_free(cluster_head_t *pclst, int thread_id);
 void db_buf_free(cluster_head_t *pclst, int thread_id);
 int fill_in_rsv_list_simple(cluster_head_t *pclst, int nr, int thread_id);
 int g_data_size = 8;
-
 #if 1 //for test
 char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id)
 {
@@ -132,7 +131,7 @@ void set_data_size(int size)
 }
 char *alloc_data(void)
 {
-    return kmalloc(DATA_SIZE,GFP_KERNEL);
+    return kmalloc(DATA_SIZE,GFP_ATOMIC);
 }
 void free_data(char *p)
 {
@@ -152,7 +151,7 @@ char *upper_get_key(char *pdata)
 char* cluster_alloc_page(void)
 {
     void *p;
-    p = kmalloc(4096,GFP_KERNEL);
+    p = kmalloc(4096,GFP_ATOMIC);
     if(p != 0)
     {
         memset(p, 0, 4096);
@@ -368,7 +367,7 @@ cluster_head_t * cluster_init(int is_bottom,
         phead->get_key_in_tree_end = default_end_get_key;
     }
 
-    phead->thrd_data = (spt_thrd_data *)kmalloc(sizeof(spt_thrd_data)*thread_num,GFP_KERNEL);
+    phead->thrd_data = (spt_thrd_data *)kmalloc(sizeof(spt_thrd_data)*thread_num,GFP_ATOMIC);
     if(phead->thrd_data == NULL)
     {
         cluster_destroy(phead);
@@ -1124,7 +1123,7 @@ int test_add_page(cluster_head_t *pclst)
         }
         else
         {
-            new_head = kmalloc(size*2,GFP_KERNEL);
+            new_head = kmalloc(size*2,GFP_ATOMIC);
             if(new_head == NULL)
             {
                 kfree(page);

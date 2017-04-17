@@ -19,11 +19,7 @@ extern int make_slice_wprotect(unsigned long slice_idx);
 
 extern int free_slice(unsigned long slice_idx);
 
-extern int delete_fix_slice(unsigned long slice_idx);
-
 extern int inc_reverse_count(unsigned long slice_idx);
-
-extern struct pone_desc* insert_sd_tree(unsigned long slice_idx);
 
 extern int change_reverse_ref(unsigned long slice_idx,unsigned long new_slie);
 

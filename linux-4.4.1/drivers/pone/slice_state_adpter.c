@@ -19,6 +19,9 @@
 #include <pone/slice_state_adpter.h>
 #include <pone/pone.h>
 #include <pone/lf_rwq.h>
+#include "vector.h"
+#include "chunk.h"
+#include "splitter_adp.h"
 struct timer_list slice_merge_timer = {0};
 extern unsigned long long slice_file_watch_chg;
 extern unsigned long long slice_file_fix_chg;
@@ -134,6 +137,7 @@ int free_slice(unsigned long slice_idx)
     return 0;
 }
 
+#if 0
 int delete_fix_slice(unsigned long slice_idx)
 {
     char *addr;
@@ -147,7 +151,7 @@ int delete_fix_slice(unsigned long slice_idx)
 	
 	return ret;
 }
-
+#endif
 int inc_reverse_count(unsigned long slice_idx)
 {
     struct page *page = pfn_to_page(slice_idx);
@@ -286,7 +290,7 @@ int  change_reverse_ref(unsigned long slice_idx,unsigned long new_slice)
 	}
     return SLICE_OK;
 }
-    
+#if 0    
 struct pone_desc* insert_sd_tree(unsigned long slice_idx)
 {
     char *addr;
@@ -300,7 +304,7 @@ struct pone_desc* insert_sd_tree(unsigned long slice_idx)
 
     return ret;
 }
-
+#endif
 static void slice_merge_timer_process(unsigned long data)
 {
 	lfrwq_set_r_max_idx(slice_que,lfrwq_get_w_idx(slice_que));
@@ -349,23 +353,42 @@ void slice_que_reader_init(void)
 		check  = &per_cpu(process_enter_check,cpu);
 		*check = 0;
 	}
+	for_each_online_cpu(cpu)
+	{
+		per_cpu(local_thrd_id,cpu) = cpu;
+		
+	}
 	return ;
 }
 
 void process_que_interrupt(void)
 {
 	int cpu = smp_processor_id();
-	int *check  = &per_cpu(process_enter_check,cpu);
-	lfrwq_reader *reader = &per_cpu(int_slice_watch_que_reader,cpu);
-	process_que_num++;
-	if(*check == 0)
+	int check  = per_cpu(process_enter_check,cpu);
+	lfrwq_reader *reader = NULL;
+	if(check)
 	{
-		*check = 1;
+		return;
+	}
+	if(cpu !=1)
+	{
+		return ;
+	}
+	process_que_num++;
+	if(cpu%2)
+	{
+		reader = &per_cpu(int_slice_watch_que_reader,cpu);
 		process_state_que(slice_watch_que,reader);
 		reader = &per_cpu(int_slice_que_reader,cpu);
 		process_state_que(slice_que,reader);
 	}
-	*check = 0;
+	else
+	{
+		reader = &per_cpu(int_slice_que_reader,cpu);
+		process_state_que(slice_que,reader);
+		reader = &per_cpu(int_slice_watch_que_reader,cpu);
+		process_state_que(slice_watch_que,reader);
+	}
 	return;
 }
 
@@ -433,7 +456,7 @@ int  slice_file_write_proc(struct address_space *space,unsigned long offset)
 				if(0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE))
 				{
 					atomic64_add(1,(atomic64_t*)&slice_file_fix_chg);
-					delete_fix_slice(slice_idx);
+					delete_sd_tree(slice_idx);
 					page->index = offset;
 					page->mapping = space;
 					unlock_page(page);
@@ -537,7 +560,7 @@ struct page* slice_file_replace_proc(struct address_space *mapping,unsigned long
 				if(0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE))
 				{
 					atomic64_add(1,(atomic64_t*)&slice_file_fix_chg);
-					delete_fix_slice(slice_idx);
+					delete_sd_tree(slice_idx);
 					page->index = index;
 					page->mapping = mapping;
 					printk("page_count is %d\r\n",*(int*)&page->_count);

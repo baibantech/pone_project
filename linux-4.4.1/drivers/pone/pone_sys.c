@@ -41,13 +41,21 @@ extern unsigned long long slice_file_chgref_num;
 extern struct pone_hash_head *pone_hash_table;
 extern unsigned long long rmap_rwsem_count;
 extern unsigned long long rmap_rwsem_release_count;
+extern unsigned long long data_map_key_cnt;
+extern unsigned long long data_unmap_key_cnt;
+#if 0
+extern unsigned long long page_anon_num;
+extern unsigned long long page_read_fault_num;
+extern unsigned long long page_do_fault_num;
+extern unsigned long long page_pte_fault_num;
+extern unsigned long long page_pte_none_num;
+#endif
+
 #ifdef CONFIG_SYSFS
 
-#define PONE_ATTR_RO(_name) \
-		static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
-#define PONE_ATTR(_name) \
-		static struct kobj_attribute _name##_attr = \
-		__ATTR(_name, 0644, _name##_show, _name##_store)
+#define PONE_ATTR_RO(_name) static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
+
+#define PONE_ATTR(_name)  static struct kobj_attribute _name##_attr =	__ATTR(_name, 0644, _name##_show, _name##_store)
 
 extern int pone_case_init(void);
 int pone_hash_table_show(char *buf)
@@ -162,7 +170,12 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 		len += lfrwq_reader_info_get(reader,buf+len);
 	}
 #endif
-	len += sprintf(buf +len ,"slice que process count is %lld\r\n",process_que_num);
+	//len += sprintf(buf +len ,"slice que process count is %lld\r\n",process_que_num);
+	//len += sprintf(buf +len ,"page anon  count is %lld\r\n",page_anon_num);
+	//len += sprintf(buf +len ,"page read fault count is %lld\r\n",page_read_fault_num);
+	//len += sprintf(buf +len ,"page do fault count is %lld\r\n",page_do_fault_num);
+	//len += sprintf(buf +len ,"page pte fault count is %lld\r\n",page_pte_fault_num);
+	//len += sprintf(buf +len ,"page pte nono  count is %lld\r\n",page_pte_none_num);
 	
 	len += sprintf(buf +len ,"slice alloc count is %lld\r\n",slice_alloc_num);
 	len += sprintf(buf +len ,"slice in que ok  count is %lld\r\n",slice_in_que_ok);
@@ -182,6 +195,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice file chg ref is %lld\r\n",slice_file_chgref_num);
 	len += sprintf(buf +len ,"rwsem count is %lld\r\n",rmap_rwsem_count);
 	len += sprintf(buf +len ,"rwsem release count  is %lld\r\n",rmap_rwsem_release_count);
+	len += sprintf(buf +len ,"data map key  count is %lld\r\n",data_map_key_cnt);
+	len += sprintf(buf +len ,"data unmap key count  count is %lld\r\n",data_unmap_key_cnt);
 
 	len += slice_file_info_get(buf+len);
 	return len;

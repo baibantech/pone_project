@@ -189,7 +189,9 @@ cluster_head_t *spt_cluster_init(u64 startbit,
 
 
 spt_thrd_t *spt_thread_init(int thread_num);
+void spt_set_thrd_id(int val);
 
-
+int spt_thread_start(int thread);
+void spt_thread_exit(int thread);
 #endif
 

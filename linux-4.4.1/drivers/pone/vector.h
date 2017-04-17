@@ -422,6 +422,7 @@ extern cluster_head_t *pgclst;
 
 DECLARE_PER_CPU(u32,local_thrd_id);
 DECLARE_PER_CPU(int,local_thrd_errno);
-#define g_thrd_id   *(this_cpu_ptr(&local_thrd_id))
-#define g_thrd_errno  *(this_cpu_ptr(&local_thrd_errno))
+DECLARE_PER_CPU(int,process_enter_check);
+#define g_thrd_id     per_cpu(local_thrd_id,smp_processor_id())
+#define g_thrd_errno  per_cpu(local_thrd_errno,smp_processor_id())
 #endif

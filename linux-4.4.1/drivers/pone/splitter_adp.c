@@ -12,7 +12,8 @@
 #include <linux/rmap.h>
 #include "vector.h"
 #include "chunk.h"
-
+unsigned long long data_map_key_cnt = 0;
+unsigned long long data_unmap_key_cnt = 0;
 struct page *get_page_ptr(char *pdata)
 {
 	return (struct page*)(pdata);
@@ -21,6 +22,7 @@ struct page *get_page_ptr(char *pdata)
 char *tree_get_key_from_data(char *pdata)
 {
 	struct page *page = NULL;
+	atomic64_add(1,(atomic64_t*)&data_map_key_cnt);
 	if(NULL == pdata)
 	{
 		return NULL;
@@ -30,13 +32,16 @@ char *tree_get_key_from_data(char *pdata)
 	{
 		return NULL;
 	}
+
 	return kmap_atomic(page);
 }
 void tree_free_key(char *key)
 {
+	atomic64_add(1,(atomic64_t*)&data_unmap_key_cnt);
 	kunmap_atomic(key);
 	return;
 }
+
 void tree_free_data(char *pdata)
 {
 	struct page *page = NULL;
@@ -45,7 +50,7 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
-			__free_pages(page,0);
+			put_page(page);
 		}
 	}
 	return;
@@ -55,7 +60,7 @@ char *tree_construct_data_from_key(char *pkey)
 {
     char *pdata;
 
-    pdata = (char *)kmalloc(DATA_SIZE,GFP_KERNEL);
+    pdata = (char *)kmalloc(DATA_SIZE,GFP_ATOMIC);
     if(pdata == NULL)
         return NULL;
     memcpy(pdata, pkey, DATA_SIZE);
@@ -67,7 +72,7 @@ int pone_case_init(void)
 	int thread_num = 0;
 	set_data_size(PAGE_SIZE);
 	
-	thread_num = 2*num_possible_cpus();
+	thread_num = num_online_cpus()+1;
 	printk("the thread_num is %d\r\n",thread_num);
 	if(pgclst)
 	{
@@ -91,4 +96,33 @@ int pone_case_init(void)
         return 1;
 	}
 	return 0;
+}
+
+char * insert_sd_tree(unsigned long slice_idx)
+{
+	struct page *page = pfn_to_page(slice_idx);
+	void *r_data = NULL;
+	if(page)
+	{
+		spt_thread_start(g_thrd_id);
+		r_data = insert_data(pgclst,(char*)page);
+		spt_thread_exit(g_thrd_id);
+	}
+	return r_data;
+}
+int delete_sd_tree(unsigned long slice_idx)
+{
+	struct page *page = pfn_to_page(slice_idx);
+	int ret = -1;
+	int cpu = smp_processor_id();
+	if(page)
+	{
+		per_cpu(process_enter_check,cpu) = 1;
+		spt_thread_start(g_thrd_id);
+		ret = delete_data(pgclst,page);
+		spt_thread_exit(g_thrd_id);
+		per_cpu(process_enter_check,cpu) = 0;
+	}
+	return ret;
+
 }
