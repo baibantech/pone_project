@@ -198,13 +198,21 @@ MODULE_DESCRIPTION("merge_mem");
 
 static int __init merge_mem_init(void)
 {
-	slice_que_resource_init();
+	if(0 != slice_que_resource_init())
+	{
+		printk("slice_que_resource_init err\r\n");
+		return -1;
+	}
 	slice_que_reader_init();
 	pone_case_init();
 	open_softirq(PONE_SOFTIRQ,process_que_interrupt);
-	pone_hash_table_init(0x10000);
-	slice_state_control_init();
-	slice_merge_timer_init(1000);
+	//pone_hash_table_init(0x10000);
+	if(0 != slice_state_control_init())
+	{
+		printk("slice_state_control_init err \r\n");
+		return -1;
+	}
+	slice_merge_timer_init(20);
 	pone_sysfs_init();
 	printk("slice_control_init \r\n");
 }

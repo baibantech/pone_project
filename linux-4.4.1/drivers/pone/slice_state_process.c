@@ -93,13 +93,16 @@ int slice_state_map_init(slice_state_control_block *blk)
 			if(!blk->slice_node[i].slice_state_map)
             {
                 free_slice_state_control(blk);
-                return -1;
+                blk = NULL;
+				printk("vmalloc mem failed \r\n");
+				return -1;
             }
 			printk("nid is %d ,map addr is %p \r\n",i,blk->slice_node[i].slice_state_map);
             blk->slice_node[i].mem_size = mem_size;
 			memset(blk->slice_node[i].slice_state_map,0,mem_size);           
         }
     }
+	global_block = blk;
 	global_pone_init = 1;
     return 0;
 }
@@ -107,15 +110,16 @@ int slice_state_map_init(slice_state_control_block *blk)
 int slice_state_control_init(void)
 {
     int ret = -1;
+	slice_state_control_block *blk;
     if(NULL == global_block)
     {
-        global_block = kmalloc(PAGE_SIZE,GFP_KERNEL);
-        if(global_block)
+        blk  = kmalloc(PAGE_SIZE,GFP_KERNEL);
+        if(blk)
         {
-            ret = collect_sys_slice_info(global_block);
+            ret = collect_sys_slice_info(blk);
             if( 0 == ret)
             {
-                return  slice_state_map_init(global_block);            
+                return  slice_state_map_init(blk);            
             }
         }
     }         
@@ -190,15 +194,15 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
 
 int slice_que_resource_init(void)
 {
-    slice_que = lfrwq_init(8192,512,50);
+    slice_que = lfrwq_init(8192*16,2048,50);
     if(!slice_que)
     {
         return -1;
     }
-    slice_watch_que = lfrwq_init(8192,512,50);
+    slice_watch_que = lfrwq_init(8192*8,2048,50);
     if(!slice_watch_que)
     {
-        kfree(slice_que);
+        vfree(slice_que);
         return -1;
     }
     return 0;

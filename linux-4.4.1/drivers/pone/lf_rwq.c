@@ -2,6 +2,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <pone/lf_rwq.h>
+#include <linux/vmalloc.h>
 
 u32 mydebug[5][65536];
 
@@ -320,13 +321,13 @@ lfrwq_t* lfrwq_init(u32 q_len, u32 blk_len, u32 readers)
     blk_cnt = q_len/blk_len;
     total_len = sizeof(u64)*q_len + sizeof(lfrwq_t)+sizeof(u64)*(blk_cnt);
     total_len = (1+(total_len -1)/PAGE_SIZE)*PAGE_SIZE;
-    qh = kmalloc(total_len,GFP_KERNEL);
+    qh = vmalloc(total_len);
     if(!qh)
     {
         return NULL;
     }
     memset((void *)qh, 0, total_len);
-#if 1
+#if 0
 	page_num = total_len/PAGE_SIZE;
     while(page_num)
     {
