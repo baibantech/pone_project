@@ -68,6 +68,7 @@
 #include <asm/div64.h>
 
 #ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
 #endif
 
@@ -3296,6 +3297,10 @@ EXPORT_SYMBOL(get_zeroed_page);
 
 void __free_pages(struct page *page, unsigned int order)
 {
+#ifdef CONFIG_PONE_MODULE
+	pre_fix_slice_check(page,order);
+#endif
+
 	if (put_page_testzero(page)) {
 		if (order == 0)
 			free_hot_cold_page(page, false);

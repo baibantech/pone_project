@@ -133,8 +133,8 @@ int make_slice_wprotect(unsigned long slice_idx)
 int free_slice(unsigned long slice_idx)
 {
     struct page* page = pfn_to_page(slice_idx);
-    __free_pages(page,0);
-    return 0;
+    free_hot_cold_page(page,0);
+	return 0;
 }
 
 #if 0

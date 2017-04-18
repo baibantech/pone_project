@@ -24,7 +24,8 @@
 
 #define CREATE_TRACE_POINTS
 #include <asm/trace/exceptions.h>
-
+#include <pone/slice_state.h>
+#include <pone/slice_state_adpter.h>
 /*
  * Page fault error code bits:
  *
@@ -1054,6 +1055,7 @@ static inline bool smap_violation(int error_code, struct pt_regs *regs)
  * {,trace_}do_page_fault() have notrace on. Having this an actual function
  * guarantees there's a function trace entry.
  */
+unsigned long long enter_page_fault = 0;
 static noinline void
 __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 		unsigned long address)
@@ -1066,7 +1068,10 @@ __do_page_fault(struct pt_regs *regs, unsigned long error_code,
 
 	tsk = current;
 	mm = tsk->mm;
-
+	if(process_slice_check())
+	{
+		atomic64_add(1,(atomic64_t*)&enter_page_fault);
+	}
 	/*
 	 * Detect and handle instructions that would cause a page fault for
 	 * both a tracked kernel page and a userspace page.

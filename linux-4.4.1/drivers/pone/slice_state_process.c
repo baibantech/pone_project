@@ -25,18 +25,26 @@ unsigned long slice_que_debug = 1;
 unsigned long long slice_alloc_num = 0;
 unsigned long long slice_in_que_ok =0;
 unsigned long long slice_in_que_err = 0;
+
 unsigned long long slice_protect_err = 0;
 unsigned long long slice_in_watch_que_ok = 0;
 unsigned long long slice_in_watch_que_err = 0;
+unsigned long long slice_mem_que_free =0;
+
+
 unsigned long long slice_new_insert_num = 0 ;
 unsigned long long slice_change_ref_err = 0;
 unsigned long long slice_merge_num = 0;
-unsigned long long slice_free_num = 0;
+unsigned long long slice_mem_watch_free = 0;
+
+unsigned long long slice_free_num =0 ;
+unsigned long long slice_fix_free_num = 0;
+unsigned long long slice_volatile_free_num = 0;
+unsigned long long slice_other_free_num = 0;
+unsigned long long slice_sys_free_num = 0;
+
 unsigned long long slice_mem_watch_change= 0;
 unsigned long long slice_mem_fix_change = 0;
-
-unsigned long long slice_mem_que_free =0;
-unsigned long long slice_mem_watch_free = 0;
 
 
 unsigned long long slice_file_protect_num = 0;
@@ -45,6 +53,7 @@ unsigned long long slice_file_cow = 0;
 unsigned long long slice_file_watch_chg = 0;
 unsigned long long slice_file_fix_chg = 0;
 extern unsigned long pone_file_watch ;
+extern struct mm_struct *pone_debug_ljy_mm;
 int ljy_printk_count = 0;
 int global_pone_init = 0;
 int is_pone_init(void)
@@ -195,6 +204,51 @@ int slice_que_resource_init(void)
     return 0;
 }
 
+
+void pre_fix_slice_check(void *data,int order)
+{
+	unsigned int nid;
+	unsigned long long slice_id;
+	int i = 0;
+	unsigned long long cur_state;
+	struct page *org_page = (struct page*)data;
+
+	if(!global_block)
+	{
+		return;
+	}
+
+	for(i = 0; i < (1<< order);i++)
+	{
+		unsigned long slice_idx = page_to_pfn(org_page + i);
+		if(atomic_read(&((org_page + i)->_count)) < 0)
+		{
+			printk("err in slice fix check 1\r\n");
+			break;
+		}
+		
+		nid = slice_idx_to_node(slice_idx);
+		slice_id = slice_nr_in_node(nid,slice_idx);
+		barrier();
+		cur_state = get_slice_state(nid,slice_id);	
+		if(SLICE_FIX == cur_state)
+		{
+			if(atomic_read(&((org_page + i)->_count)) > 1)
+			{
+				if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
+				{
+					delete_sd_tree(slice_idx);			
+				}
+				else
+				{	
+					printk("error in pre slice fix check");
+				}
+			}
+		}
+	}
+}
+
+
 int process_slice_state(unsigned long slice_idx ,int op,void *data)
 {
     unsigned long long cur_state;
@@ -221,14 +275,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
         case SLICE_ALLOC:
 		{
 			/* data is the struct page* */
-			//printk("slice op is SLICE_ALLOC\r\n");
-			//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 			if(!slice_que_debug)
 			{
 				return 0;
 			}
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
-#if 1
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -249,7 +300,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}
 
 			}while(1);
-#endif
+			
 			break;
 		}
         
@@ -261,20 +312,19 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				cur_state = get_slice_state(nid,slice_id);
 				if(cur_state != SLICE_IDLE)
 				{
-					//printk("slice op is SLICE_FREE\r\n");
-					//printk("cur state is %d\r\n",cur_state);
-					//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 					atomic64_add(1,(atomic64_t*)&slice_free_num);
 					if(0 == change_slice_state(nid,slice_id,cur_state,SLICE_IDLE)){
 						if(SLICE_FIX == cur_state){
-							delete_sd_tree(slice_idx);
+							atomic64_add(1,(atomic64_t*)&slice_fix_free_num);
 							ret = 0;
 						}
 						else if(SLICE_VOLATILE == cur_state){
+							atomic64_add(1,(atomic64_t*)&slice_volatile_free_num);
 							ret = 0;
 						}
 						else {
 							/*slice state is SLICE_ENQUE,SLICE_WATCH,SLICE_WATCH_CHG*/
+							atomic64_add(1,(atomic64_t*)&slice_other_free_num);
 							ret = -1 ;/*sys do not free this page*/
 						}
 					}
@@ -287,6 +337,10 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				{
 					/* 0 make linux sys free this page*/
 					ret = 0;
+					if(process_slice_check())
+					{
+						atomic64_add(1,(atomic64_t*)&slice_sys_free_num);
+					}
 				}
 				break;
 
@@ -295,12 +349,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			break;
 		}
 
-        case SLICE_CHANGE:/*cow excption,reuse*/
+		case SLICE_CHANGE:/*cow excption:reuse*/
 		{
 			do
 			{
 				/* slice state is fix or watch*/
-				//printk("slice change slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 				cur_state = get_slice_state(nid,slice_id);
 				if(SLICE_WATCH == cur_state){
 					atomic64_add(1,(atomic64_t*)&slice_mem_watch_change);
@@ -310,14 +363,27 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}    
 				else if(SLICE_FIX == cur_state){
 					atomic64_add(1,(atomic64_t*)&slice_mem_fix_change);
-					if( 0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE)){
-						delete_sd_tree(slice_idx);
+					if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
+					{
+						if(atomic_read(&pfn_to_page(slice_idx)->_count)!= 2)
+						{
+							printk("FIX change ref is err %d\r\n",atomic_read(&pfn_to_page(slice_idx)->_count));
+						}
+						delete_sd_tree(slice_idx);			
+						if( 0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE)){
+							
+							break;
+						}
 						break;
-					}    
+						printk("err in fix chg status\r\n");
+					}
+					else
+					{
+						continue;
+					}
 				}
 				else{
 					break;
-					//printk("error state in slice change %lld\r\n",cur_state);
 				}
 			}while(1);
 			ret = 0;
@@ -328,14 +394,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
-				//printk("SLICE OUT QUE ,cur state is %lld\r\n",cur_state);
-				//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 				
 				if(!slice_que_debug){
 					ret = 0;
 					break;
 				}	
-				//printk("slice out que page count is %d\r\n",*(int*)&page->_count);
 				if(SLICE_IDLE == cur_state){
 					/*page free by sys*/
 					free_slice(slice_idx);
@@ -351,12 +414,10 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 							if(0 != lfrwq_inq(slice_watch_que,data))
 							{
 								atomic64_add(1,(atomic64_t*)&slice_in_watch_que_err);
-								//printk("in watch que err\r\n");
 							}
 							else
 							{
 								atomic64_add(1,(atomic64_t*)&slice_in_watch_que_ok);
-								//printk("in watch que ok \r\n");
 								ret = 0;
 								break;
 							}
@@ -523,8 +584,16 @@ int process_slice_check(void)
 	if(!global_block)
 		return 0;
 #if 1
-	if(0 == strcmp(current->comm,src))	
+	if(0 == strcmp(current->comm,src))
+	{	
+	#if 0		
+if(!pone_debug_ljy_mm) 
+		{
+			pone_debug_ljy_mm = current->mm;
+		}
+#endif
 		return 1;
+	}
 	else
 		return 0;
 #endif

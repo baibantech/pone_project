@@ -22,27 +22,47 @@
 extern unsigned long long process_que_num;
 extern unsigned long slice_watch_que_debug;
 extern unsigned long slice_que_debug;
+
 extern unsigned long long slice_alloc_num ;
 extern unsigned long long slice_in_que_ok;
 extern unsigned long long slice_in_que_err;
+
 extern unsigned long long slice_protect_err;
 extern unsigned long long slice_in_watch_que_ok;
 extern unsigned long long slice_in_watch_que_err;
+extern unsigned long long slice_mem_que_free;
+
+
 extern unsigned long long slice_new_insert_num ;
 extern unsigned long long slice_change_ref_err;
 extern unsigned long long slice_merge_num ;
+extern unsigned long long slice_mem_watch_free;
+
+
 extern unsigned long long slice_free_num ;
+extern unsigned long long slice_fix_free_num;
+extern unsigned long long slice_volatile_free_num;
+extern unsigned long long slice_other_free_num;
+extern unsigned long long slice_sys_free_num;
+
 extern unsigned long long slice_mem_watch_change ;
 extern unsigned long long slice_mem_fix_change;
+
+
+#if 0
 extern unsigned long long slice_file_cow;
 extern unsigned long long slice_file_watch_chg;
 extern unsigned long long slice_file_fix_chg;
 extern unsigned long long slice_file_chgref_num;
+#endif
+
 extern struct pone_hash_head *pone_hash_table;
 extern unsigned long long rmap_rwsem_count;
 extern unsigned long long rmap_rwsem_release_count;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
+
+extern unsigned long long enter_page_fault;
 #if 0
 extern unsigned long long page_anon_num;
 extern unsigned long long page_read_fault_num;
@@ -180,23 +200,44 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice alloc count is %lld\r\n",slice_alloc_num);
 	len += sprintf(buf +len ,"slice in que ok  count is %lld\r\n",slice_in_que_ok);
 	len += sprintf(buf +len ,"slice in que err count is %lld\r\n",slice_in_que_err);
+
 	len += sprintf(buf +len ,"slice protect err  count is %lld\r\n",slice_protect_err);
 	len += sprintf(buf +len ,"slice in watch que ok  count is %lld\r\n",slice_in_watch_que_ok);
 	len += sprintf(buf +len ,"slice in watch que err count is %lld\r\n",slice_in_watch_que_err);
+	len += sprintf(buf +len ,"slice mem  que free count is %lld\r\n",slice_mem_que_free);
+	
+	
 	len += sprintf(buf +len ,"slice new insert count is %lld\r\n",slice_new_insert_num);
 	len += sprintf(buf +len ,"slice change ref err  count is %lld\r\n",slice_change_ref_err);
 	len += sprintf(buf +len ,"slice merge count is %lld\r\n",slice_merge_num);
+	len += sprintf(buf +len ,"slice mem watch free count is %lld\r\n",slice_mem_watch_free);
+	
+	
+	
 	len += sprintf(buf +len ,"slice free count is %lld\r\n",slice_free_num);
+	len += sprintf(buf +len ,"slice fix free count is %lld\r\n",slice_fix_free_num);
+	len += sprintf(buf +len ,"slice volatile free count is %lld\r\n",slice_volatile_free_num);
+	len += sprintf(buf +len ,"slice other free count is %lld\r\n",slice_other_free_num);
+	len += sprintf(buf +len ,"slice sys free count is %lld\r\n",slice_sys_free_num);
+
+
+
+
 	len += sprintf(buf +len ,"slice mem watch chg is %lld\r\n",slice_mem_watch_change);
 	len += sprintf(buf +len ,"slice mem fix chg is %lld\r\n",slice_mem_fix_change);
+	
+#if 0
 	len += sprintf(buf +len ,"slice file cow  is %lld\r\n",slice_file_cow);
 	len += sprintf(buf +len ,"slice file watch chg is %lld\r\n",slice_file_watch_chg);
 	len += sprintf(buf +len ,"slice file fix chg is %lld\r\n",slice_file_fix_chg);
 	len += sprintf(buf +len ,"slice file chg ref is %lld\r\n",slice_file_chgref_num);
+#endif
+
 	len += sprintf(buf +len ,"rwsem count is %lld\r\n",rmap_rwsem_count);
 	len += sprintf(buf +len ,"rwsem release count  is %lld\r\n",rmap_rwsem_release_count);
 	len += sprintf(buf +len ,"data map key  count is %lld\r\n",data_map_key_cnt);
 	len += sprintf(buf +len ,"data unmap key count  count is %lld\r\n",data_unmap_key_cnt);
+	len += sprintf(buf +len ,"enter page fault  count is %lld\r\n",enter_page_fault);
 
 	len += slice_file_info_get(buf+len);
 	return len;
@@ -226,9 +267,11 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 	return count;
 }
 #endif
+extern void debug_mm_pte(void);
 
 static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
+	debug_mm_pte();	
 	return sprintf(buf,"%ld",pone_file_watch);
 
 }
