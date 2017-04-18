@@ -62,7 +62,6 @@ extern unsigned long long rmap_rwsem_release_count;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
 
-extern unsigned long long enter_page_fault;
 #if 0
 extern unsigned long long page_anon_num;
 extern unsigned long long page_read_fault_num;
@@ -237,7 +236,6 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"rwsem release count  is %lld\r\n",rmap_rwsem_release_count);
 	len += sprintf(buf +len ,"data map key  count is %lld\r\n",data_map_key_cnt);
 	len += sprintf(buf +len ,"data unmap key count  count is %lld\r\n",data_unmap_key_cnt);
-	len += sprintf(buf +len ,"enter page fault  count is %lld\r\n",enter_page_fault);
 
 	len += slice_file_info_get(buf+len);
 	return len;

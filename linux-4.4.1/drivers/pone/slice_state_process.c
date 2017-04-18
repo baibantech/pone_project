@@ -217,7 +217,7 @@ void pre_fix_slice_check(void *data,int order)
 	unsigned long long cur_state;
 	struct page *org_page = (struct page*)data;
 
-	if(!global_block)
+	if(!is_pone_init())
 	{
 		return;
 	}
@@ -261,12 +261,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 	struct page  *result = NULL;
 	int ret = -1;
 	struct page *org_slice = pfn_to_page(slice_idx);
-	if(!global_block)
-	{
-		return 0;
-	}
-
-	if(PageKsm(org_slice))
+	if(!is_pone_init())
 	{
 		return 0;
 	}
@@ -585,7 +580,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 int process_slice_check(void)
 {
 	char *src = "test_case";
-	if(!global_block)
+	if(!is_pone_init())
 		return 0;
 #if 1
 	if(0 == strcmp(current->comm,src))

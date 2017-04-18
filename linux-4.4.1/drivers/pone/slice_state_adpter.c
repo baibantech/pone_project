@@ -406,7 +406,7 @@ int  slice_file_write_proc(struct address_space *space,unsigned long offset)
 	int fgp_flags = FGP_LOCK;
 
 
-	if(!global_block)
+	if(!is_pone_init())
 	{
 		return 0;
 	}
@@ -519,7 +519,7 @@ struct page* slice_file_replace_proc(struct address_space *mapping,unsigned long
 	unsigned long long slice_id;
 	unsigned long long slice_idx;
 	struct page *new_page = NULL;
-	if(!global_block)
+	if(!is_pone_init())
 	{
 		return page;
 	}
