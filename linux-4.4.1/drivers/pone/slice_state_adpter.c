@@ -77,7 +77,7 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
  
 		ptep =  __page_get_pte_address(page, mm, addr);
 		if (!ptep)
-			return 0;
+			return -1;
 
 		if (pte_write(*ptep) || pte_dirty(*ptep)) {
 			pte_t entry;
@@ -133,7 +133,11 @@ int make_slice_wprotect(unsigned long slice_idx)
 int free_slice(unsigned long slice_idx)
 {
     struct page* page = pfn_to_page(slice_idx);
-    free_hot_cold_page(page,0);
+    if(0 != atomic_read(&page->_count))
+	{
+		printk("page count is err is free_slice count is %d\r\n",atomic_read(&page->_count));
+	}
+	free_hot_cold_page(page,0);
 	return 0;
 }
 
@@ -237,7 +241,6 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 		if (!page_mapped(page))
 			try_to_free_swap(page);
 
-		put_page(page);
 	}
 	else
 	{
@@ -330,6 +333,8 @@ void slice_merge_timer_init(unsigned long time_ms)
 DEFINE_PER_CPU(lfrwq_reader , int_slice_que_reader);
 DEFINE_PER_CPU(lfrwq_reader , int_slice_watch_que_reader);
 DEFINE_PER_CPU(int,process_enter_check);
+DEFINE_PER_CPU(int,in_que_cnt);
+DEFINE_PER_CPU(int,in_watch_que_cnt);
 unsigned long long process_que_num = 0;
 void slice_que_reader_init(void)
 {
@@ -358,6 +363,14 @@ void slice_que_reader_init(void)
 		per_cpu(local_thrd_id,cpu) = cpu;
 		
 	}
+	for_each_online_cpu(cpu)
+	{
+		per_cpu(in_que_cnt,cpu) = 0;
+	}	
+	for_each_online_cpu(cpu)
+	{
+		per_cpu(in_watch_que_cnt,cpu) = 0;
+	}
 	return ;
 }
 
@@ -370,10 +383,7 @@ void process_que_interrupt(void)
 	{
 		return;
 	}
-	if(cpu !=1)
-	{
-		return ;
-	}
+	
 	process_que_num++;
 	if(cpu%2)
 	{

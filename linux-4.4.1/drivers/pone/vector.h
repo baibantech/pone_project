@@ -417,7 +417,7 @@ void db_free(cluster_head_t *pcluster, int id);
 
 extern spt_thrd_t *g_thrd_h;
 extern spt_dbg_info g_dbg_info;
-
+int spt_get_errno(void);
 extern cluster_head_t *pgclst;
 
 DECLARE_PER_CPU(u32,local_thrd_id);

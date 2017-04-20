@@ -2131,6 +2131,13 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_add_new_anon_rmap(new_page, vma, address);
 		mem_cgroup_commit_charge(new_page, memcg, false);
 		lru_cache_add_active_or_unevictable(new_page, vma);
+
+		/*
+		 * We call the notify macro here because, when using secondary
+		 * mmu page tables (such as kvm shadow page tables), we want the
+		 * new page to be mapped directly into the secondary page table.
+		 */
+		set_pte_at_notify(mm, address, page_table, entry);
 		#ifdef CONFIG_PONE_MODULE
 		if(process_slice_check())
 		{
@@ -2139,14 +2146,6 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 			
 		}
 		#endif
-		
-
-		/*
-		 * We call the notify macro here because, when using secondary
-		 * mmu page tables (such as kvm shadow page tables), we want the
-		 * new page to be mapped directly into the secondary page table.
-		 */
-		set_pte_at_notify(mm, address, page_table, entry);
 		update_mmu_cache(vma, address, page_table);
 		if (old_page) {
 			/*
@@ -2694,6 +2693,10 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	spinlock_t *ptl;
 	pte_t entry;
 
+	#ifdef CONFIG_PONE_MODULE
+	int new = 0;
+	#endif
+
 	pte_unmap(page_table);
 
 	/* File mapping without ->vm_ops ? */
@@ -2759,16 +2762,21 @@ static int do_anonymous_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	mem_cgroup_commit_charge(page, memcg, false);
 	lru_cache_add_active_or_unevictable(page, vma);
 #if CONFIG_PONE_MODULE
-	if(process_slice_check())
-	{
-		process_slice_state(page_to_pfn(page),SLICE_ALLOC,page);
-	}
+	new = 1;
 #endif
 setpte:
 	set_pte_at(mm, address, page_table, entry);
 
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, address, page_table);
+
+#if CONFIG_PONE_MODULE
+	if(process_slice_check())
+	{
+		if(new) 
+			process_slice_state(page_to_pfn(page),SLICE_ALLOC,page);
+	}
+#endif
 unlock:
 	pte_unmap_unlock(page_table, ptl);
 	return 0;

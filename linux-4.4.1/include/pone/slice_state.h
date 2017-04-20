@@ -66,7 +66,7 @@ extern int slice_que_resource_init(void);
 extern int process_state_que(lfrwq_t *qh,lfrwq_reader *reader);
 extern int change_slice_state(unsigned int nid,unsigned long long slice_id,unsigned long long old_state,unsigned long long new_state);
 extern int is_pone_init(void);
-extern void pre_fix_slice_check(void *data,int oder);
+extern void pre_fix_slice_check(void *data);
 static inline int slice_idx_to_node(unsigned long slice_idx)
 {
     int i ;

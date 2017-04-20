@@ -33,6 +33,7 @@ unsigned long long slice_mem_que_free =0;
 
 
 unsigned long long slice_new_insert_num = 0 ;
+unsigned long long slice_insert_sd_tree_err = 0;
 unsigned long long slice_change_ref_err = 0;
 unsigned long long slice_merge_num = 0;
 unsigned long long slice_mem_watch_free = 0;
@@ -56,6 +57,11 @@ extern unsigned long pone_file_watch ;
 extern struct mm_struct *pone_debug_ljy_mm;
 int ljy_printk_count = 0;
 int global_pone_init = 0;
+
+void slice_debug_area_insert(struct page *page);
+int slice_debug_area_init(void);
+int is_in_slice_debug_area(struct page *page);
+
 int is_pone_init(void)
 {
 	return global_pone_init;
@@ -205,53 +211,46 @@ int slice_que_resource_init(void)
         vfree(slice_que);
         return -1;
     }
+	slice_debug_area_init();
     return 0;
 }
 
-
-void pre_fix_slice_check(void *data,int order)
+unsigned long long slice_pre_fix_check_cnt = 0;
+void pre_fix_slice_check(void *data)
 {
 	unsigned int nid;
 	unsigned long long slice_id;
 	int i = 0;
 	unsigned long long cur_state;
 	struct page *org_page = (struct page*)data;
-
+	unsigned long slice_idx = page_to_pfn(org_page);
+	
 	if(!is_pone_init())
 	{
 		return;
 	}
 
-	for(i = 0; i < (1<< order);i++)
+	nid = slice_idx_to_node(slice_idx);
+	slice_id = slice_nr_in_node(nid,slice_idx);
+	barrier();
+	cur_state = get_slice_state(nid,slice_id);	
+	if(SLICE_FIX == cur_state)
 	{
-		unsigned long slice_idx = page_to_pfn(org_page + i);
-		if(atomic_read(&((org_page + i)->_count)) < 0)
+		if(atomic_read(&(org_page->_count)) > 1)
 		{
-			printk("err in slice fix check 1\r\n");
-			break;
-		}
-		
-		nid = slice_idx_to_node(slice_idx);
-		slice_id = slice_nr_in_node(nid,slice_idx);
-		barrier();
-		cur_state = get_slice_state(nid,slice_id);	
-		if(SLICE_FIX == cur_state)
-		{
-			if(atomic_read(&((org_page + i)->_count)) > 1)
+			if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
 			{
-				if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
-				{
-					delete_sd_tree(slice_idx);			
-				}
-				else
-				{	
-					printk("error in pre slice fix check");
-				}
+				atomic64_add(1,(atomic64_t*)&slice_pre_fix_check_cnt);
+				delete_sd_tree(slice_idx);			
+			}
+			else
+			{	
+				printk("error in pre slice fix check");
 			}
 		}
 	}
 }
-
+EXPORT_SYMBOL(pre_fix_slice_check);
 
 int process_slice_state(unsigned long slice_idx ,int op,void *data)
 {
@@ -279,6 +278,14 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				return 0;
 			}
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
+			
+			if(per_cpu(in_que_cnt,smp_processor_id())++  > 100)
+			{
+				per_cpu(in_que_cnt,smp_processor_id()) = 0;
+				lfrwq_set_r_max_idx(slice_que,lfrwq_get_w_idx(slice_que));
+			}
+			slice_debug_area_insert(org_slice);
+
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -336,10 +343,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				{
 					/* 0 make linux sys free this page*/
 					ret = 0;
-					if(process_slice_check())
-					{
-						atomic64_add(1,(atomic64_t*)&slice_sys_free_num);
-					}
+				
 				}
 				break;
 
@@ -364,17 +368,14 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					atomic64_add(1,(atomic64_t*)&slice_mem_fix_change);
 					if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
 					{
-						if(atomic_read(&pfn_to_page(slice_idx)->_count)!= 2)
-						{
-							printk("FIX change ref is err %d\r\n",atomic_read(&pfn_to_page(slice_idx)->_count));
-						}
+						printk("org_slice %p count %d,mapcount %d\r\n",org_slice,atomic_read(&org_slice->_count),atomic_read(&org_slice->_mapcount));
 						delete_sd_tree(slice_idx);			
 						if( 0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE)){
 							
 							break;
 						}
-						break;
 						printk("err in fix chg status\r\n");
+						break;
 					}
 					else
 					{
@@ -406,6 +407,13 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					break;
 				}
 				else if(SLICE_ENQUE == cur_state){
+					
+					
+					if(per_cpu(in_watch_que_cnt,smp_processor_id())++  > 100)
+					{
+						per_cpu(in_watch_que_cnt,smp_processor_id()) = 0;
+						lfrwq_set_r_max_idx(slice_watch_que,lfrwq_get_w_idx(slice_watch_que));
+					}
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
@@ -483,23 +491,13 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}
 				else if (SLICE_WATCH == cur_state)
 				{
-					//printk("insert sd tree\r\n");
-
-#if 0
-						if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_FIX)){
-							atomic64_add(1,(atomic64_t*)&slice_new_insert_num);
-							//printk("slice_idx is new insert ok\r\n");
-							ret = 0;
-
-							break;
-						}
-#endif
-#if 1
 					get_page(org_slice);
 					result = insert_sd_tree(slice_idx);
 					if(NULL == result){
+						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
 						put_page(org_slice);
-						goto op_err;
+						atomic64_add(1,(atomic64_t*)slice_insert_sd_tree_err);
+						break;
 					}
 						
 					if(result == org_slice){
@@ -509,48 +507,32 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 							ret = 0;
 							break;
 						}
-						delete_sd_tree(slice_idx);
-						continue;
+						else
+						{
+							delete_sd_tree(slice_idx);
+							continue;
+						}
 					}
 					else{
-#if 1	
-						get_page(org_slice);
 						//printk("slice_idx is same to new_slice %lld,%lld\r\n",slice_idx,pone->slice_idx);
 						if(SLICE_OK == change_reverse_ref(slice_idx,page_to_pfn(result)))
 						{
 							atomic64_add(1,(atomic64_t*)&slice_merge_num);
 							while(0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_IDLE));
 							put_page(org_slice);
+							put_page(org_slice);
 							ret = 0;
-							break;
 						}
 						else
 						{
 							//printk("change ref ret err\r\n");
 							atomic64_add(1,(atomic64_t*)&slice_change_ref_err);
+							while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
 							delete_sd_tree(slice_idx);
 							put_page(org_slice);
 						}
-#endif
+						break;
 					}
-					op_err:
-						do{	
-							/*insert  err or change ref  err*/
-							cur_state = get_slice_state(nid,slice_id);
-
-							if(SLICE_IDLE == cur_state)
-							{
-								free_slice(slice_idx);
-								break;
-							}
-							
-							if (0 == change_slice_state(nid,slice_id,cur_state,SLICE_VOLATILE))
-							{
-								break;
-							}
-						}while(1);
-					break;
-#endif
 				}
 				else if(SLICE_WATCH_CHG == cur_state){
 					
@@ -692,11 +674,12 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
                     }
                 }
                 reader->r_cnt++;
-				
-				if(process_cnt++ >100)
+#if 1	
+				if(process_cnt++ >2000)
 				{
 					break;
 				}
+#endif
 			}
         }
         
@@ -705,7 +688,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
             lfrwq_add_rcnt(qh,reader->r_cnt,reader->local_blk);
             reader->r_cnt = 0 ;
         }
-		if(process_cnt++ >40)
+		if(process_cnt++ >2000)
 		{
 			break;
 		}
@@ -715,10 +698,74 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
     return 0;
 }
 
+unsigned int slice_debug_area_cnt = 0;
+struct page **debug_page_ptr = NULL;
+int slice_area_size = 10000;
+int slice_debug_area_init(void)
+{
+	if(NULL == debug_page_ptr)
+	{
+		debug_page_ptr = vmalloc(slice_area_size *sizeof(struct page*));
+		if(debug_page_ptr)
+		{
+			memset(debug_page_ptr,0,slice_area_size*sizeof(struct page*));
+			return 0;
+		}
 
+	}
+	return -1;
+}
 
+void slice_debug_area_insert(struct page *page)
+{
+	int index = atomic_add_return(1,(atomic_t*)&slice_debug_area_cnt)-1;
+	index = index%slice_area_size;
+	debug_page_ptr[index] = page;
+}
 
+int is_in_slice_debug_area(struct page *page)
+{
+	int i = 0;
+	if(!debug_page_ptr)
+	{
+		return 0;
+	}
+	for(i = 0; i < slice_area_size; i++)
+	{
+		if(debug_page_ptr[i] == page)
+		{
+			return 1;
+		}
+	}
+	return 0;
+}
 
+int slice_debug_area_show(void)
+{
+	int i = 0;
+	int loop_cnt = slice_debug_area_cnt;
+	unsigned int nid;
+	unsigned long long slice_id;
+	unsigned long long slice_idx;
+	unsigned long long cur_state;
+	printk("slice insert cnt %d\r\n",slice_debug_area_cnt);
+	if(debug_page_ptr == NULL)
+	{
+		return -1;
+	}
+	if(slice_debug_area_cnt > slice_area_size)
+	{
+		loop_cnt = slice_area_size;
+	}
+	for(i = 0;i < loop_cnt;i++)
+	{
+		slice_idx = page_to_pfn(debug_page_ptr[i]);
+		nid = slice_idx_to_node(slice_idx);
+		slice_id = slice_nr_in_node(nid,slice_idx);
+		printk("page ptr is %p,page cnt is %d ,map_cnt is %d ,cur_state is %lld\r\n",debug_page_ptr[i],atomic_read(&debug_page_ptr[i]->_count),atomic_read(&debug_page_ptr[i]->_mapcount),get_slice_state(nid,slice_id));
+	}
+	return 0;
+}
 
 
 

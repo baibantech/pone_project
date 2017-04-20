@@ -17,7 +17,8 @@
 #include <pone/pone.h>
 #include <pone/slice_state_adpter.h>
 #include <pone/lf_rwq.h>
-
+#include "vector.h"
+#include "chunk.h"
 
 extern unsigned long long process_que_num;
 extern unsigned long slice_watch_que_debug;
@@ -48,7 +49,7 @@ extern unsigned long long slice_sys_free_num;
 extern unsigned long long slice_mem_watch_change ;
 extern unsigned long long slice_mem_fix_change;
 
-
+extern int debug_statistic(cluster_head_t *head);
 #if 0
 extern unsigned long long slice_file_cow;
 extern unsigned long long slice_file_watch_chg;
@@ -61,7 +62,8 @@ extern unsigned long long rmap_rwsem_count;
 extern unsigned long long rmap_rwsem_release_count;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
-
+extern unsigned long long delete_sd_tree_count ;
+extern unsigned long long slice_pre_fix_check_cnt ;
 #if 0
 extern unsigned long long page_anon_num;
 extern unsigned long long page_read_fault_num;
@@ -236,6 +238,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"rwsem release count  is %lld\r\n",rmap_rwsem_release_count);
 	len += sprintf(buf +len ,"data map key  count is %lld\r\n",data_map_key_cnt);
 	len += sprintf(buf +len ,"data unmap key count  count is %lld\r\n",data_unmap_key_cnt);
+	len += sprintf(buf +len ,"delete sd tree cnt  is %lld\r\n",delete_sd_tree_count);
+	len += sprintf(buf +len ,"slice pre fix check cnt  is %lld\r\n",slice_pre_fix_check_cnt);
 
 	len += slice_file_info_get(buf+len);
 	return len;
@@ -296,18 +300,20 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 }
 PONE_ATTR(pone_debug);
 
-
-static ssize_t pone_merge_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
-{
-	return  pone_hash_table_show(buf);
+extern int slice_debug_area_show(void);
+static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{	slice_debug_area_show();
+	debug_statistic(pgclst);
+	return sprintf(buf,"check dmesg buffer");
 }
 
-PONE_ATTR_RO(pone_merge);
+
+PONE_ATTR_RO(pone_sd_tree);
 
 static struct attribute *pone_attrs[] = {
 		&pone_info_attr.attr,
 		&pone_debug_attr.attr,
-		&pone_merge_attr.attr,
+		&pone_sd_tree_attr.attr,
 		NULL,
 };
 

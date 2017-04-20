@@ -110,16 +110,25 @@ char * insert_sd_tree(unsigned long slice_idx)
 	}
 	return r_data;
 }
+unsigned long long delete_sd_tree_count =0;
 int delete_sd_tree(unsigned long slice_idx)
 {
 	struct page *page = pfn_to_page(slice_idx);
 	int ret = -1;
 	int cpu = smp_processor_id();
+
 	if(page)
 	{
 		per_cpu(process_enter_check,cpu) = 1;
 		spt_thread_start(g_thrd_id);
 		ret = delete_data(pgclst,page);
+		if(ret < 0)
+		{
+			printk("delete_sd_tree err ret is %d\r\n",ret);
+			printk("delete thread erro code is %d\r\n",spt_get_errno());
+			dump_stack();
+		}
+		atomic64_add(1,(atomic64_t*)&delete_sd_tree_count);
 		spt_thread_exit(g_thrd_id);
 		per_cpu(process_enter_check,cpu) = 0;
 	}

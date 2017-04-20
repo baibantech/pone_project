@@ -653,11 +653,6 @@ int do_insert_dsignpost_right(cluster_head_t *pclst, insert_info_t *pinsert, cha
     int ret;
     spt_dh *pdh;
 
-    spt_debug("@@@@@ bug\r\n");
-    dbg_switch = 1;
-    debug_data_print(pinsert->pcur_data);
-    while(1);
-
 
     dataid = data_alloc_combo(pclst, g_thrd_id, &pdh);
     if(pdh == 0)
@@ -716,11 +711,6 @@ int do_insert_rsignpost_down(cluster_head_t *pclst, insert_info_t *pinsert, char
     u32 dataid, vecid_a, vecid_b, vecid_s, cnt;
     spt_dh *pdh;
     int ret;
-    
-    spt_debug("@@@@@ bug\r\n");
-    dbg_switch = 1;
-    debug_data_print(pinsert->pcur_data);
-    while(1);
 
     pvec_s = 0;
     dataid = data_alloc_combo(pclst, g_thrd_id, &pdh);
@@ -924,10 +914,6 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
 
     if((pinsert->cmp_pos-1)-signpost > SPT_VEC_SIGNPOST_MASK)
     {
-        spt_debug("@@@@@ bug\r\n");
-        dbg_switch = 1;
-        debug_data_print(pinsert->pcur_data);
-        while(1);
         vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
         if(pvec_s == 0)
         {
@@ -993,10 +979,6 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         }
         if((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK)
         {
-            spt_debug("@@@@@ bug\r\n");
-            dbg_switch = 1;
-            debug_data_print(pinsert->pcur_data);
-            while(1);
             vecid_s2 = vec_alloc_combo(pclst, g_thrd_id, &pvec_s2);
             if(pvec_s2 == 0)
             {
@@ -1143,10 +1125,6 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
     }
     else if(tmp_vec.type == SPT_VEC_SIGNPOST)
     {
-        spt_debug("@@@@@ bug\r\n");
-        dbg_switch = 1;
-        debug_data_print(pinsert->pcur_data);
-        while(1);
         pvec_a->rd = tmp_vec.rd;
         if(tmp_vec.ext_sys_flg == SPT_VEC_SYS_FLAG_DATA)
         {
@@ -1167,10 +1145,6 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
     
     if((pinsert->cmp_pos-1)-signpost > SPT_VEC_SIGNPOST_MASK)
     {
-        spt_debug("@@@@@ bug\r\n");
-        dbg_switch = 1;
-        debug_data_print(pinsert->pcur_data);
-        while(1);
         vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
         if(pvec_s == 0)
         {
@@ -1194,10 +1168,6 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
     }
     else if((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK)
     {
-        spt_debug("@@@@@ bug\r\n");
-        dbg_switch = 1;
-        debug_data_print(pinsert->pcur_data);
-        while(1);
         vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
         if(pvec_s == 0)
         {
@@ -1305,10 +1275,6 @@ int do_insert_last_down(cluster_head_t *pclst, insert_info_t *pinsert, char *new
 
     if((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK)
     {
-        spt_debug("@@@@@ bug\r\n");
-        dbg_switch = 1;
-        debug_data_print(pinsert->pcur_data);
-        while(1);
         vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
         if(pvec_s == 0)
         {
@@ -1402,10 +1368,6 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
 
     if((pinsert->fs-1)-signpost > SPT_VEC_SIGNPOST_MASK)
     {
-        spt_debug("@@@@@ bug\r\n");
-        dbg_switch = 1;
-        debug_data_print(pinsert->pcur_data);
-        while(1);
         vecid_s = vec_alloc_combo(pclst, g_thrd_id, &pvec_s);
         if(pvec_s == 0)
         {
@@ -1436,10 +1398,6 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
     {
         if(tmp_vec.type == SPT_VEC_SIGNPOST)
         {
-            spt_debug("@@@@@ bug\r\n");
-            dbg_switch = 1;
-            debug_data_print(pinsert->pcur_data);
-            while(1);
             pvec_a->down = tmp_vec.rd;
             tmp_vec.rd = vecid_a;
         }
@@ -2021,7 +1979,7 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     int va_old, va_new;
     u8 direction;
     int ret = SPT_NOT_FOUND;
-    int retb;
+    int retb, dataid_confirm, cmp_invalid;
     vec_cmpret_t cmpres;
     insert_info_t st_insert_info;
     char *pdata, *prdata;
@@ -2147,6 +2105,11 @@ refind_forward:
                 if(cur_data != SPT_INVALID)
                 {
                     pclst->get_key_in_tree_end(pcur_data);
+                    if(cur_vec.rd != cur_data)
+                    {
+                        cur_data = SPT_INVALID;
+                        goto refind_start;
+                    }
                 }                
                 cur_data = cur_vec.rd;
                 if(cur_data >= 0 && cur_data < SPT_INVALID)
@@ -2233,6 +2196,11 @@ refind_forward:
                             tmp_vec.rd = next_vec.down;
                             if(cur_data != SPT_INVALID)
                             {
+                                //之前的比较无效，删除结点后重查
+                                if(cur_data != next_vec.rd)
+                                {
+                                    cmp_invalid = 1;
+                                }
                                 cur_data = SPT_INVALID;
                                 pclst->get_key_in_tree_end(pcur_data);
                             }
@@ -2258,6 +2226,11 @@ refind_forward:
                             return retb;
                         }
                         ///TODO:取新值后再continue
+                    }
+                    if(cmp_invalid)
+                    {
+                        cmp_invalid = 0;
+                        goto refind_start;
                     }
                     cur_vec.val = pcur->val;
                     if(cur_vec.status == SPT_VEC_INVALID)
@@ -2629,144 +2602,151 @@ refind_forward:
                 continue;
             }
             /*insert up*/
-            else if(cmp > 0)
+            else 
             {
-                switch(op){
-                case SPT_OP_FIND:
-                    if(pqinfo->op == SPT_OP_FIND)
-                    {
-                        pqinfo->db_id = cur_data;
-                        pqinfo->vec_id = cur_vecid;
-                        pqinfo->cmp_result = 1;
-                    }
-                    finish_key_cb(prdata);
-                    if(cur_data != SPT_INVALID)
-                    {
-                        pclst->get_key_in_tree_end(pcur_data);
-                    }
-                    return ret;
-                case SPT_OP_INSERT:
-                    st_insert_info.pkey_vec= pcur;
-                    st_insert_info.key_val= cur_vec.val;
-                    st_insert_info.cmp_pos = cmpres.pos;
-                    st_insert_info.fs = cmpres.smallfs;
-                    st_insert_info.signpost = signpost;
-                    st_insert_info.endbit = startbit+len;
-                    st_insert_info.dataid = cur_data;
-                    //for debug
-                    st_insert_info.pcur_data = pcur_data;
-                    st_insert_info.startbit = startbit;
-                    st_insert_info.cmpres = cmpres;
-                    ret = do_insert_up_via_r(pclst, &st_insert_info, pdata);
-                    if(ret == SPT_DO_AGAIN)
-                    {
-                        goto refind_start;
-                    }
-                    else if(ret >= 0)
-                    {
-                        pqinfo->db_id = ret;
-                        pqinfo->data = 0;
-                        finish_key_cb(prdata);
-                        if(cur_data != SPT_INVALID)
+                if(cur_data != get_data_id(pclst, pcur))
+                    goto refind_start;
+                if(cmp > 0)
+                {
+                    switch(op){
+                    case SPT_OP_FIND:
+                        if(pqinfo->op == SPT_OP_FIND)
                         {
-                            pclst->get_key_in_tree_end(pcur_data);
+                            pqinfo->db_id = cur_data;
+                            pqinfo->vec_id = cur_vecid;
+                            pqinfo->cmp_result = 1;
                         }
-                        return SPT_OK;
-                    }
-                    else
-                    {
                         finish_key_cb(prdata);
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
                         }
                         return ret;
+                    case SPT_OP_INSERT:
+                        st_insert_info.pkey_vec= pcur;
+                        st_insert_info.key_val= cur_vec.val;
+                        st_insert_info.cmp_pos = cmpres.pos;
+                        st_insert_info.fs = cmpres.smallfs;
+                        st_insert_info.signpost = signpost;
+                        st_insert_info.endbit = startbit+len;
+                        st_insert_info.dataid = cur_data;
+                        //for debug
+                        st_insert_info.pcur_data = pcur_data;
+                        st_insert_info.startbit = startbit;
+                        st_insert_info.cmpres = cmpres;
+                        ret = do_insert_up_via_r(pclst, &st_insert_info, pdata);
+                        if(ret == SPT_DO_AGAIN)
+                        {
+                            goto refind_start;
+                        }
+                        else if(ret >= 0)
+                        {
+                            pqinfo->db_id = ret;
+                            pqinfo->data = 0;
+                            finish_key_cb(prdata);
+                            if(cur_data != SPT_INVALID)
+                            {
+                                pclst->get_key_in_tree_end(pcur_data);
+                            }
+                            return SPT_OK;
+                        }
+                        else
+                        {
+                            finish_key_cb(prdata);
+                            if(cur_data != SPT_INVALID)
+                            {
+                                pclst->get_key_in_tree_end(pcur_data);
+                            }
+                            return ret;
+                        }
+                        break;
+                    case SPT_OP_DELETE:
+                        finish_key_cb(prdata);
+                        if(cur_data != SPT_INVALID)
+                        {
+                            pclst->get_key_in_tree_end(pcur_data);
+                        }
+                        return ret;
+                    default:
+                        break;
                     }
-                    break;
-                case SPT_OP_DELETE:
-                    finish_key_cb(prdata);
-                    if(cur_data != SPT_INVALID)
-                    {
-                        pclst->get_key_in_tree_end(pcur_data);
+                }
+                /*insert down*/
+                else
+                {
+                    switch(op){
+                    case SPT_OP_FIND:
+                        if(pqinfo->op == SPT_OP_FIND)
+                        {
+                            pqinfo->db_id = cur_data;
+                            pqinfo->vec_id = cur_vecid;
+                            pqinfo->cmp_result = -1;
+                        }
+                        finish_key_cb(prdata);
+                        if(cur_data != SPT_INVALID)
+                        {
+                            pclst->get_key_in_tree_end(pcur_data);
+                        }
+                        return ret;
+                    case SPT_OP_INSERT:
+                        startbit +=len;
+                        if(cmpres.smallfs == startbit && startbit<endbit)
+                        {
+                            st_insert_info.fs = find_fs(prdata, startbit, endbit-startbit);
+                        }
+                        else
+                        {
+                            st_insert_info.fs = cmpres.smallfs;
+                        }
+                        st_insert_info.pkey_vec= pcur;
+                        st_insert_info.key_val= cur_vec.val;
+                        st_insert_info.cmp_pos = cmpres.pos;
+                        st_insert_info.signpost = signpost;
+                        ret = do_insert_down_via_r(pclst, &st_insert_info, pdata);
+                        if(ret == SPT_DO_AGAIN)
+                        {
+                            goto refind_start;
+                        }
+                        else if(ret >= 0)
+                        {
+                            pqinfo->db_id = ret;
+                            pqinfo->data = 0;
+                            finish_key_cb(prdata);
+                            if(cur_data != SPT_INVALID)
+                            {
+                                pclst->get_key_in_tree_end(pcur_data);
+                            }
+                            return SPT_OK;
+                        }
+                        else
+                        {
+                            finish_key_cb(prdata);
+                            if(cur_data != SPT_INVALID)
+                            {
+                                pclst->get_key_in_tree_end(pcur_data);
+                            }
+                            return ret;
+                        }
+                        break;
+                    case SPT_OP_DELETE:
+                        finish_key_cb(prdata);
+                        if(cur_data != SPT_INVALID)
+                        {
+                            pclst->get_key_in_tree_end(pcur_data);
+                        }
+                        return ret;
+                    default:
+                        break;
                     }
-                    return ret;
-                default:
-                    break;
                 }
             }
-            /*insert down*/
-            else
-            {
-                switch(op){
-                case SPT_OP_FIND:
-                    if(pqinfo->op == SPT_OP_FIND)
-                    {
-                        pqinfo->db_id = cur_data;
-                        pqinfo->vec_id = cur_vecid;
-                        pqinfo->cmp_result = -1;
-                    }
-                    finish_key_cb(prdata);
-                    if(cur_data != SPT_INVALID)
-                    {
-                        pclst->get_key_in_tree_end(pcur_data);
-                    }
-                    return ret;
-                case SPT_OP_INSERT:
-                    startbit +=len;
-                    if(cmpres.smallfs == startbit && startbit<endbit)
-                    {
-                        st_insert_info.fs = find_fs(prdata, startbit, endbit-startbit);
-                    }
-                    else
-                    {
-                        st_insert_info.fs = cmpres.smallfs;
-                    }
-                    st_insert_info.pkey_vec= pcur;
-                    st_insert_info.key_val= cur_vec.val;
-                    st_insert_info.cmp_pos = cmpres.pos;
-                    st_insert_info.signpost = signpost;
-                    ret = do_insert_down_via_r(pclst, &st_insert_info, pdata);
-                    if(ret == SPT_DO_AGAIN)
-                    {
-                        goto refind_start;
-                    }
-                    else if(ret >= 0)
-                    {
-                        pqinfo->db_id = ret;
-                        pqinfo->data = 0;
-                        finish_key_cb(prdata);
-                        if(cur_data != SPT_INVALID)
-                        {
-                            pclst->get_key_in_tree_end(pcur_data);
-                        }
-                        return SPT_OK;
-                    }
-                    else
-                    {
-                        finish_key_cb(prdata);
-                        if(cur_data != SPT_INVALID)
-                        {
-                            pclst->get_key_in_tree_end(pcur_data);
-                        }
-                        return ret;
-                    }
-                    break;
-                case SPT_OP_DELETE:
-                    finish_key_cb(prdata);
-                    if(cur_data != SPT_INVALID)
-                    {
-                        pclst->get_key_in_tree_end(pcur_data);
-                    }
-                    return ret;
-                default:
-                    break;
-                }
-            }        
         }
         else
         {
             if(cur_data != SPT_INVALID)
             {
+                if(cur_data != get_data_id(pclst, pcur))
+                    goto refind_start;
                 cur_data = SPT_INVALID;
                 pclst->get_key_in_tree_end(pcur_data);
             }
@@ -5360,6 +5340,201 @@ void debug_cluster_travl(cluster_head_t *pclst)
     pclst->data_total, ref_total);
     return;
 }
+
+u32 debug_thrd_vec_statistic(cluster_head_t *pclst)
+{
+    int i;
+    u32 total=0;
+    for(i=0;i<pclst->thrd_total;i++)
+    {
+        total+=pclst->thrd_data[i].vec_cnt;
+    }
+    return total;
+}
+
+u32 debug_thrd_data_statistic(cluster_head_t *pclst)
+{
+    int i;
+    u32 total=0;
+    for(i=0;i<pclst->thrd_total;i++)
+    {
+        total+=pclst->thrd_data[i].data_cnt;
+    }
+    return total;
+}
+
+
+int debug_statistic(cluster_head_t *pclst)
+{
+    spt_stack stack = {0};
+    spt_stack *pstack = &stack;
+    //u8 data[DATA_SIZE] = {0};
+    int cur_data, cur_vecid;
+    spt_vec *pcur;
+    spt_vec_f st_vec_f;
+    spt_dh *pdh;
+    char *pcur_data = NULL;
+    u64 signpost;
+    travl_info *pnode;
+    u32 ref_total, buf_vec_total, buf_data_total;
+    u32 lower_ref;
+    char *data;
+    cluster_head_t *plower_clst;
+
+    buf_vec_total = 0;
+    buf_data_total = 0;
+    ref_total = 0;
+    lower_ref = 0;
+    signpost = 0;
+    spt_stack_init(pstack, 1000);
+    cur_data = SPT_INVALID;
+
+    cur_vecid = pclst->vec_head;
+    pcur = (spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
+
+    debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+    if(pcur->down == SPT_NULL && pcur->rd == SPT_NULL)
+    {
+        debug_travl_stack_destroy(pstack);
+        return ref_total;
+    }
+
+    cur_data = st_vec_f.data;
+    if(cur_data != SPT_NULL)
+    {
+        pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+        pcur_data = pdh->pdata;
+        ref_total += pdh->ref;
+    }
+#if 0
+    if(st_vec_r.pos == 0)
+    {
+        printf("only one vec in this cluster\r\n");
+        debug_vec_print(&st_vec_r, cur_vec);
+        debug_data_print(pcur_data);
+        return;        
+    }
+#endif
+    debug_travl_stack_push(pstack,&st_vec_f, signpost);
+
+    while (1)
+    {
+        if(pcur->type != SPT_VEC_DATA)
+        {
+            cur_vecid = st_vec_f.right;
+            pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+            debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+            if(pcur->type == SPT_VEC_SIGNPOST)
+            {
+                signpost = st_vec_f.pos;
+                
+                cur_vecid = st_vec_f.right;
+                pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+                if(pcur->type == SPT_VEC_SIGNPOST)
+                {
+                    spt_debug("double signpost vec found!!\r\n");
+                    while(1);
+                }
+            }
+            debug_travl_stack_push(pstack,&st_vec_f, signpost);
+            #if 0
+            pos = st_vec_f.pos;
+            if(pos != 0)
+                spt_bit_cpy(data, pcur_data, bit, pos);
+            else
+                spt_bit_cpy(data, pcur_data, bit, DATA_BIT_MAX - bit);
+            bit += st_vec_r.pos;
+            #endif
+        }
+        else
+        {            
+            //debug_vec_print(&st_vec_r, cur_vec);
+            //单个数据遍历完
+            //spt_bit_cpy(data, pcur_data, bit, DATA_BIT_MAX - bit);
+            //此时data应该等于插入的某个数
+            //debug_vec_print(&st_vec_f, cur_vecid);
+            if(pcur_data != NULL)//head->right为空时，pcur_data等于空
+            {
+                #if 0
+                if(memcmp(data, pcur_data, DATA_SIZE)!=0)
+                {
+                    printf("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
+                }
+                #endif
+                //pdh = (spt_dh *)(pcur_data-sizeof(spt_dh));
+//                pdh->rank = rank;
+//                rank--;
+                data = get_real_data(pclst, pcur_data);
+                if(!pclst->is_bottom)
+                {
+                    plower_clst = ((spt_dh_ext *)pcur_data)->plower_clst;
+                    buf_data_total += debug_thrd_data_statistic(plower_clst);
+                    buf_vec_total += debug_thrd_vec_statistic(plower_clst);
+                    lower_ref += debug_statistic(plower_clst);
+                }
+            }
+            
+            if(spt_stack_empty(pstack))
+            {
+                break;
+            }
+            while(1)
+            {
+                pnode = debug_travl_stack_pop(pstack);
+                if(pnode == (travl_info *)-1)
+                {
+                    debug_travl_stack_destroy(pstack);
+                    if(!pclst->is_bottom)
+                    {
+                        spt_debug("\r\n lower_total_ref:%d\r\n", lower_ref);
+                        spt_debug("\r\n buf_data_total:%d\r\n", buf_data_total);
+                        spt_debug("\r\n buf_vec_total:%d\r\n", buf_vec_total);
+                    }
+                    return ref_total;
+                }
+                signpost = pnode->signpost;
+                if(pnode->vec_f.down != SPT_NULL)
+                {
+                    cur_vecid = pnode->vec_f.down;
+                    pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                    debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, SPT_INVALID, SPT_DOWN);
+                    //debug_vec_print(&st_vec_f, cur_vecid);
+                    
+                    if(pcur->type == SPT_VEC_SIGNPOST)
+                    {
+                        signpost = st_vec_f.pos;
+                        cur_vecid = pnode->vec_f.down;
+                        pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                        debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, SPT_INVALID, SPT_DOWN);
+                        if(pcur->type == SPT_VEC_SIGNPOST)
+                        {
+                            spt_debug("double signpost vec found!!\r\n");
+                            while(1);
+                        }
+                    }
+                    cur_data = st_vec_f.data;
+                    pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                    pcur_data = pdh->pdata;
+                    ref_total += pdh->ref;
+                    debug_travl_stack_push(pstack,&st_vec_f, signpost);
+                    kfree(pnode);
+                    break;
+                }
+                kfree(pnode);
+            }
+        }
+    }
+    debug_travl_stack_destroy(pstack);
+    if(!pclst->is_bottom)
+    {
+        spt_debug("\r\n lower_total_ref:%d\r\n", lower_ref);
+        spt_debug("\r\n buf_data_total:%d\r\n", buf_data_total);
+        spt_debug("\r\n buf_vec_total:%d\r\n", buf_vec_total);
+    }    
+    return ref_total;
+}
+
 
 int debug_upper_delete(cluster_head_t *pclst, char *pdata)
 {

@@ -1854,7 +1854,6 @@ static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 	anon_vma = rmap_walk_anon_lock(page, rwc);
 	if (!anon_vma)
 		return ret;
-	atomic64_add(1,(atomic64_t*)&rmap_rwsem_count);
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
 		struct vm_area_struct *vma = avc->vma;
 		unsigned long address = vma_address(page, vma);
@@ -1869,7 +1868,7 @@ static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 		}
 		lock_num++;
 	}
-	
+
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
 		struct vm_area_struct *vma = avc->vma;
 		unsigned long address = vma_address(page, vma);
@@ -1890,7 +1889,6 @@ free_lock:
 		pte_unmap_unlock(pte[i], ptl[i]);
 	}
 
-	atomic64_add(1,(atomic64_t*)&rmap_rwsem_release_count);
 	anon_vma_unlock_read(anon_vma);
 	put_anon_vma(anon_vma);
 	return ret;
