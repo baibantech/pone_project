@@ -337,16 +337,9 @@ struct inode;
 /*
  * Drop a ref, return true if the refcount fell to zero (the page has no users)
  */
-#ifdef CONFIG_PONE_MODULE
-	extern void pre_fix_slice_check(void *);
-#endif
 static inline int put_page_testzero(struct page *page)
 {
 	VM_BUG_ON_PAGE(atomic_read(&page->_count) == 0, page);
-#ifdef CONFIG_PONE_MODULE
-	pre_fix_slice_check(page);
-#endif
-	
 	return atomic_dec_and_test(&page->_count);
 }
 

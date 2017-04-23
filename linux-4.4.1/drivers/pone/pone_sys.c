@@ -58,11 +58,10 @@ extern unsigned long long slice_file_chgref_num;
 #endif
 
 extern struct pone_hash_head *pone_hash_table;
-extern unsigned long long rmap_rwsem_count;
-extern unsigned long long rmap_rwsem_release_count;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
-extern unsigned long long delete_sd_tree_count ;
+extern unsigned long long delete_sd_tree_ok ;
+extern unsigned long long insert_sd_tree_ok ;
 extern unsigned long long slice_pre_fix_check_cnt ;
 #if 0
 extern unsigned long long page_anon_num;
@@ -234,11 +233,10 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice file chg ref is %lld\r\n",slice_file_chgref_num);
 #endif
 
-	len += sprintf(buf +len ,"rwsem count is %lld\r\n",rmap_rwsem_count);
-	len += sprintf(buf +len ,"rwsem release count  is %lld\r\n",rmap_rwsem_release_count);
 	len += sprintf(buf +len ,"data map key  count is %lld\r\n",data_map_key_cnt);
 	len += sprintf(buf +len ,"data unmap key count  count is %lld\r\n",data_unmap_key_cnt);
-	len += sprintf(buf +len ,"delete sd tree cnt  is %lld\r\n",delete_sd_tree_count);
+	len += sprintf(buf +len ,"delete sd tree ok cnt  is %lld\r\n",delete_sd_tree_ok);
+	len += sprintf(buf +len ,"insert sd tree ok cnt  is %lld\r\n",insert_sd_tree_ok);
 	len += sprintf(buf +len ,"slice pre fix check cnt  is %lld\r\n",slice_pre_fix_check_cnt);
 
 	len += slice_file_info_get(buf+len);

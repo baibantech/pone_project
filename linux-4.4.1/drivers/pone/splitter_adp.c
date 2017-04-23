@@ -50,6 +50,7 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
+			atomic_sub(1,&page->_mapcount);
 			put_page(page);
 		}
 	}
@@ -97,7 +98,7 @@ int pone_case_init(void)
 	}
 	return 0;
 }
-
+unsigned long long insert_sd_tree_ok =0;
 char * insert_sd_tree(unsigned long slice_idx)
 {
 	struct page *page = pfn_to_page(slice_idx);
@@ -106,12 +107,16 @@ char * insert_sd_tree(unsigned long slice_idx)
 	{
 		spt_thread_start(g_thrd_id);
 		r_data = insert_data(pgclst,(char*)page);
+		if(r_data !=NULL)
+		{
+			atomic64_add(1,(atomic64_t*)&insert_sd_tree_ok);
+		}
 		spt_thread_exit(g_thrd_id);
 	}
 	return r_data;
 }
-unsigned long long delete_sd_tree_count =0;
-int delete_sd_tree(unsigned long slice_idx)
+unsigned long long delete_sd_tree_ok =0;
+int delete_sd_tree(unsigned long slice_idx,int op)
 {
 	struct page *page = pfn_to_page(slice_idx);
 	int ret = -1;
@@ -124,11 +129,15 @@ int delete_sd_tree(unsigned long slice_idx)
 		ret = delete_data(pgclst,page);
 		if(ret < 0)
 		{
-			printk("delete_sd_tree err ret is %d\r\n",ret);
+			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
+			printk("org_slice %p count %d,mapcount %d\r\n",page,atomic_read(&page->_count),atomic_read(&page->_mapcount));
 			printk("delete thread erro code is %d\r\n",spt_get_errno());
 			dump_stack();
 		}
-		atomic64_add(1,(atomic64_t*)&delete_sd_tree_count);
+		else
+		{
+			atomic64_add(1,(atomic64_t*)&delete_sd_tree_ok);
+		}
 		spt_thread_exit(g_thrd_id);
 		per_cpu(process_enter_check,cpu) = 0;
 	}

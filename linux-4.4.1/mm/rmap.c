@@ -66,6 +66,9 @@
 #include <trace/events/tlb.h>
 
 #include "internal.h"
+#ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
+#endif
 
 static struct kmem_cache *anon_vma_cachep;
 static struct kmem_cache *anon_vma_chain_cachep;
@@ -1273,6 +1276,11 @@ void page_remove_rmap(struct page *page)
 		page_remove_file_rmap(page);
 		return;
 	}
+
+#ifdef CONFIG_PONE_MODULE
+pre_fix_slice_check(page);
+#endif
+
 
 	/* page still mapped by someone else? */
 	if (!atomic_add_negative(-1, &page->_mapcount))

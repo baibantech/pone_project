@@ -2006,6 +2006,10 @@ static inline int wp_page_reuse(struct mm_struct *mm,
 	 * information potentially belongs to a now completely
 	 * unrelated process.
 	 */
+#ifdef CONFIG_PONE_MODULE
+	if(page)
+		process_slice_state(page_to_pfn(page),SLICE_CHANGE,page);	
+#endif
 	if (page)
 		page_cpupid_xchg_last(page, (1 << LAST_CPUPID_SHIFT) - 1);
 
@@ -2015,12 +2019,6 @@ static inline int wp_page_reuse(struct mm_struct *mm,
 	if (ptep_set_access_flags(vma, address, page_table, entry, 1))
 		update_mmu_cache(vma, address, page_table);
 	pte_unmap_unlock(page_table, ptl);
-	#ifdef CONFIG_PONE_MODULE
-#if 1
-	if(page)
-		process_slice_state(page_to_pfn(page),SLICE_CHANGE,page);	
-#endif	
-#endif
 
 	if (dirty_shared) {
 		struct address_space *mapping;

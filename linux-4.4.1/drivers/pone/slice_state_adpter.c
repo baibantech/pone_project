@@ -66,6 +66,11 @@ int collect_sys_slice_info(slice_state_control_block *cblock)
 }
 
 extern unsigned long long slice_file_protect_num;
+unsigned long long make_slice_protect_err_null = 0;
+unsigned long long make_slice_protect_err_nw = 0;
+unsigned long long make_slice_protect_err_map = 0;
+unsigned long long make_slice_protect_err_lock = 0;
+
 int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
 {
@@ -77,7 +82,10 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
  
 		ptep =  __page_get_pte_address(page, mm, addr);
 		if (!ptep)
+		{
+			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_null);
 			return -1;
+		}
 
 		if (pte_write(*ptep) || pte_dirty(*ptep)) {
 			pte_t entry;
@@ -89,6 +97,11 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
         
 			entry = pte_mkclean(pte_wrprotect(entry));
 			set_pte_at_notify(mm, addr, ptep, entry);
+		}
+		else
+		{
+			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_nw);
+			return -1;
 		}
 		//printk("slice proc name %s\r\n",mm->owner->comm);	
 	}
@@ -110,11 +123,13 @@ int make_slice_wprotect(unsigned long slice_idx)
     
     if (!page_rmapping(page))/*map_count*/
     {
+		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_map);
         return SLICE_STATUS_ERR;
     }
 
     if (!trylock_page(page))
     {
+		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_lock);
         return SLICE_LOCK_ERR;
     }
 
@@ -240,7 +255,7 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
     
 		if (!page_mapped(page))
 			try_to_free_swap(page);
-
+		put_page(page);
 	}
 	else
 	{
@@ -466,7 +481,7 @@ int  slice_file_write_proc(struct address_space *space,unsigned long offset)
 				if(0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE))
 				{
 					atomic64_add(1,(atomic64_t*)&slice_file_fix_chg);
-					delete_sd_tree(slice_idx);
+					delete_sd_tree(slice_idx,0xff);
 					page->index = offset;
 					page->mapping = space;
 					unlock_page(page);
@@ -570,7 +585,7 @@ struct page* slice_file_replace_proc(struct address_space *mapping,unsigned long
 				if(0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE))
 				{
 					atomic64_add(1,(atomic64_t*)&slice_file_fix_chg);
-					delete_sd_tree(slice_idx);
+					delete_sd_tree(slice_idx,0xEE);
 					page->index = index;
 					page->mapping = mapping;
 					printk("page_count is %d\r\n",*(int*)&page->_count);
