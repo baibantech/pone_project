@@ -2136,14 +2136,6 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		 * new page to be mapped directly into the secondary page table.
 		 */
 		set_pte_at_notify(mm, address, page_table, entry);
-		#ifdef CONFIG_PONE_MODULE
-		if(process_slice_check())
-		{
-			if(op_page)
-			process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page);
-			
-		}
-		#endif
 		update_mmu_cache(vma, address, page_table);
 		if (old_page) {
 			/*
@@ -2182,6 +2174,15 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		page_cache_release(new_page);
 
 	pte_unmap_unlock(page_table, ptl);
+
+	#ifdef CONFIG_PONE_MODULE
+	if(process_slice_check())
+	{
+		if(op_page&&page_copied)
+		process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page);
+		
+	}
+	#endif
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
 	if (old_page) {
 		/*
@@ -2768,6 +2769,8 @@ setpte:
 	/* No need to invalidate - it was non-present before */
 	update_mmu_cache(vma, address, page_table);
 
+unlock:
+	pte_unmap_unlock(page_table, ptl);
 #if CONFIG_PONE_MODULE
 	if(process_slice_check())
 	{
@@ -2775,8 +2778,6 @@ setpte:
 			process_slice_state(page_to_pfn(page),SLICE_ALLOC,page);
 	}
 #endif
-unlock:
-	pte_unmap_unlock(page_table, ptl);
 	return 0;
 release:
 	mem_cgroup_cancel_charge(page, memcg);

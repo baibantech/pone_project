@@ -42,9 +42,14 @@ u64 lfrwq_get_w_idx(lfrwq_t *qh)
 	return qh->w_idx;
 }
 
-void lfrwq_set_r_max_idx(lfrwq_t *qh,u64 r_idx)
+int lfrwq_set_r_max_idx(lfrwq_t *qh,u64 r_idx)
 {
-    qh->r_max_idx_period = r_idx;
+    if(qh->r_max_idx_period < r_idx)
+	{
+		qh->r_max_idx_period = r_idx;
+		return 1;
+	}
+	return 0;
 }
 
 u64 lfrwq_get_r_max_idx(lfrwq_t *qh)
@@ -52,8 +57,22 @@ u64 lfrwq_get_r_max_idx(lfrwq_t *qh)
     return qh->r_max_idx_period;
 }
 
-
-
+int lfrwq_is_null(lfrwq_t *qh)
+{
+	if(qh->r_idx > qh->w_idx)
+	{
+		return 1;
+	}
+	return 0;
+}
+int lfrwq_len(lfrwq_t *qh)
+{
+	if(qh->w_idx > qh->r_idx)
+	{
+		return qh->w_idx-qh->r_idx;
+	}
+	return 0;
+}
 
 u64 lfrwq_deq_by_idx(lfrwq_t *qh,u64 idx,void **ppdata)
 {

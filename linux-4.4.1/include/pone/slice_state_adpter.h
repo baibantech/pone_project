@@ -31,7 +31,9 @@ extern int slice_file_write_proc(struct address_space *space,unsigned long offse
 struct page* slice_file_replace_proc(struct address_space *mapping,unsigned long index,struct page *page);
 DECLARE_PER_CPU(lfrwq_reader,int_slice_que_reader);
 DECLARE_PER_CPU(lfrwq_reader,int_slice_watch_que_reader);
+DECLARE_PER_CPU(lfrwq_reader,int_slice_deamon_que_reader);
 DECLARE_PER_CPU(int,in_que_cnt);
 DECLARE_PER_CPU(int,in_watch_que_cnt);
+DECLARE_PER_CPU(int,volatile_cnt);
 extern struct address_space *check_space ;
 #endif

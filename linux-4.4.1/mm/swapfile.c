@@ -39,6 +39,9 @@
 #include <asm/tlbflush.h>
 #include <linux/swapops.h>
 #include <linux/swap_cgroup.h>
+#ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
+#endif
 
 static bool swap_count_continued(struct swap_info_struct *, pgoff_t,
 				 unsigned char);
@@ -925,10 +928,20 @@ out:
 int reuse_swap_page(struct page *page)
 {
 	int count;
-
+	#ifdef CONFIG_PONE_MODULE
+	unsigned long long cur_state;
+	#endif
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	if (unlikely(PageKsm(page)))
 		return 0;
+#ifdef CONFIG_PONE_MODULE
+	cur_state = get_slice_state_by_id(page_to_pfn(page));
+	if(cur_state != SLICE_NULL)
+	{
+		return 0;
+	}
+#endif
+
 	count = page_mapcount(page);
 	if (count <= 1 && PageSwapCache(page)) {
 		count += page_swapcount(page);

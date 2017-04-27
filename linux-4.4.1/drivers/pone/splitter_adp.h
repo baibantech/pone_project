@@ -13,4 +13,5 @@ char *tree_construct_data_from_key(char *pkey);
 int pone_case_init(void);
 char *insert_sd_tree(unsigned long slice_idx);
 int delete_sd_tree(unsigned long slice_idx,int op);
+void splitter_thread_wakeup(void);
 #endif

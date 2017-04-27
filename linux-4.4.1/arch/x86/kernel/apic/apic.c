@@ -905,7 +905,7 @@ static void local_apic_timer_interrupt(void)
 #ifdef CONFIG_PONE_MODULE
 	if(is_pone_init())
 	{
-		__raise_softirq_irqoff(PONE_SOFTIRQ);
+		//__raise_softirq_irqoff(PONE_SOFTIRQ);
 	}
 #endif
 

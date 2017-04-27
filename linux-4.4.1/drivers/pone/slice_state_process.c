@@ -26,19 +26,19 @@ unsigned long long slice_alloc_num = 0;
 unsigned long long slice_in_que_ok =0;
 unsigned long long slice_in_que_err = 0;
 
+unsigned long long slice_out_que_num = 0;
 unsigned long long slice_protect_err = 0;
 unsigned long long slice_in_watch_que_ok = 0;
 unsigned long long slice_in_watch_que_err = 0;
 unsigned long long slice_mem_que_free =0;
 
-
-unsigned long long slice_new_insert_num = 0 ;
+unsigned long long slice_map_cnt_err = 0;
 unsigned long long slice_insert_sd_tree_err = 0;
+unsigned long long slice_new_insert_num = 0 ;
 unsigned long long slice_change_ref_err = 0;
 unsigned long long slice_merge_num = 0;
 unsigned long long slice_mem_watch_free = 0;
 
-unsigned long long slice_free_num =0 ;
 unsigned long long slice_fix_free_num = 0;
 unsigned long long slice_volatile_free_num = 0;
 unsigned long long slice_other_free_num = 0;
@@ -46,6 +46,9 @@ unsigned long long slice_sys_free_num = 0;
 
 unsigned long long slice_mem_watch_change= 0;
 unsigned long long slice_mem_fix_change = 0;
+
+unsigned long long slice_volatile_in_que_err = 0;
+unsigned long long slice_volatile_in_que_ok = 0;
 
 
 unsigned long long slice_file_protect_num = 0;
@@ -125,10 +128,14 @@ int slice_state_control_init(void)
             ret = collect_sys_slice_info(blk);
             if( 0 == ret)
             {
-                return  slice_state_map_init(blk);            
+                ret = slice_state_map_init(blk);            
             }
         }
-    }         
+    }
+	if(0 == ret) 
+	{
+		return slice_deamon_init();
+	}
     return ret;
 }
 
@@ -142,6 +149,23 @@ static inline unsigned long long get_slice_state_by_unit(unsigned long long stat
     int offset = slice_id%SLICE_NUM_PER_UNIT;
     return  (state_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK;
 }
+
+
+unsigned long long get_slice_state_by_id(unsigned long slice_idx)
+{
+	unsigned int nid = 0;
+	unsigned long long slice_id = 0;
+	if(!is_pone_init())
+	{
+		return SLICE_IDLE;
+	}
+	nid = slice_idx_to_node(slice_idx);
+	slice_id = slice_nr_in_node(nid,slice_idx);
+	barrier();
+	return get_slice_state(nid,slice_id);	
+}
+EXPORT_SYMBOL(get_slice_state_by_id);
+
 
 unsigned long long construct_new_state(unsigned int nid,unsigned long long slice_id,unsigned long long new_state)
 {
@@ -188,7 +212,11 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
     
         if(cur_state_unit == atomic64_cmpxchg((atomic64_t*)state_unit_addr,cur_state_unit,new_state_unit))
         {
-            break;
+            if(SLICE_VOLATILE == new_state)
+			{
+				per_cpu(volatile_cnt,smp_processor_id())++;
+			}
+			break;
         }
 
     }while(1);
@@ -200,12 +228,12 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
 
 int slice_que_resource_init(void)
 {
-    slice_que = lfrwq_init(8192*16,2048,50);
+    slice_que = lfrwq_init(8192*32,2048,50);
     if(!slice_que)
     {
         return -1;
     }
-    slice_watch_que = lfrwq_init(8192*8,2048,50);
+    slice_watch_que = lfrwq_init(8192*32,2048,50);
     if(!slice_watch_que)
     {
         vfree(slice_que);
@@ -232,28 +260,36 @@ void pre_fix_slice_check(void *data)
 
 	nid = slice_idx_to_node(slice_idx);
 	slice_id = slice_nr_in_node(nid,slice_idx);
-	barrier();
-	cur_state = get_slice_state(nid,slice_id);	
-	if(SLICE_FIX == cur_state)
-	{
-		if(atomic_read(&(org_page->_mapcount)) > 0)
+	do{
+
+		barrier();
+		cur_state = get_slice_state(nid,slice_id);	
+		if(SLICE_FIX == cur_state)
 		{
 			if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
 			{
 				atomic64_add(1,(atomic64_t*)&slice_pre_fix_check_cnt);
-				delete_sd_tree(slice_idx,SLICE_FIX);			
+				delete_sd_tree(slice_idx,SLICE_FIX);
+				break;
 			}
-			else
-			{	
-				printk("error in pre slice fix check");
+		}
+		else if(SLICE_WATCH == cur_state)
+		{
+			if(0 == change_slice_state(nid ,slice_id,SLICE_WATCH,SLICE_WATCH_CHG))
+			{
+				break;
 			}
 		}
 		else
 		{
-			printk("mapcount err in pre fix check\r\n");
+			if(0 == change_slice_state(nid ,slice_id,cur_state,cur_state))
+			{
+				break;
+			}
 		}
-	}
+	}while(1);
 }
+
 EXPORT_SYMBOL(pre_fix_slice_check);
 
 int process_slice_state(unsigned long slice_idx ,int op,void *data)
@@ -283,25 +319,29 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			}
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
 			
+#if 0
 			if(per_cpu(in_que_cnt,smp_processor_id())++  > 100)
 			{
 				per_cpu(in_que_cnt,smp_processor_id()) = 0;
 				lfrwq_set_r_max_idx(slice_que,lfrwq_get_w_idx(slice_que));
+				splitter_thread_wakeup();
 			}
+#endif
 			slice_debug_area_insert(org_slice);
 
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
-				if(SLICE_IDLE != cur_state){
+				if(SLICE_NULL != cur_state){
 					printk("slice state is %lld ,err in slice alloc\r\n",cur_state);
 					break;
 				}
 				if(0 != atomic_read(&org_slice->_mapcount))
 				{
+					printk("slice state is %lld ,err in map slice alloc\r\n",cur_state);
 					break;
 				}
-				if(0 == change_slice_state(nid,slice_id,SLICE_IDLE,SLICE_ENQUE)) {
+				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE)) {
 					if(-1 == lfrwq_inq(slice_que,data)){
 						atomic64_add(1,(atomic64_t*)&slice_in_que_err);
 						while(0 != change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE));
@@ -324,36 +364,51 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			{
 				/* return value 0 ,make page free by linux system*/
 				cur_state = get_slice_state(nid,slice_id);
-				if(cur_state != SLICE_IDLE)
+				if(cur_state != SLICE_NULL)
 				{
-					atomic64_add(1,(atomic64_t*)&slice_free_num);
-					if(0 == change_slice_state(nid,slice_id,cur_state,SLICE_IDLE)){
-						if(SLICE_FIX == cur_state){
+					if(SLICE_IDLE == cur_state)
+					{
+						if(0 == change_slice_state(nid,slice_id,SLICE_IDLE,SLICE_NULL))
+						{
+							ret = -1;
+							break;
+						}
+					}
+					else if(SLICE_FIX == cur_state)
+					{
+						if(0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_NULL))
+						{
+							//printk("fix free slice is %p,mapcount is %d\r\n",org_slice,atomic_read(&org_slice->_mapcount));
 							atomic64_add(1,(atomic64_t*)&slice_fix_free_num);
-							ret = 0;
+							ret = -1;
+							break;
 						}
-						else if(SLICE_VOLATILE == cur_state){
+
+					}else if(SLICE_VOLATILE == cur_state){
+						if(0 == change_slice_state(nid,slice_id,SLICE_VOLATILE,SLICE_NULL))
+						{
 							atomic64_add(1,(atomic64_t*)&slice_volatile_free_num);
-							ret = 0;
+							ret = -1;
+							break;
 						}
-						else {
-							/*slice state is SLICE_ENQUE,SLICE_WATCH,SLICE_WATCH_CHG*/
+					}
+					else 
+					{
+						/*slice state is SLICE_ENQUE,SLICE_WATCH,SLICE_WATCH_CHG*/
+						if(0 == change_slice_state(nid,slice_id,cur_state,SLICE_IDLE))
+						{
 							atomic64_add(1,(atomic64_t*)&slice_other_free_num);
 							ret = -1 ;/*sys do not free this page*/
+							break;
 						}
 					}
-					else {
-						continue;
-					}
-					
 				}
 				else
 				{
 					/* 0 make linux sys free this page*/
 					ret = 0;
-				
+					break;	
 				}
-				break;
 
 			}while(1);            
 
@@ -367,6 +422,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				/* slice state is fix or watch*/
 				cur_state = get_slice_state(nid,slice_id);
 				if(SLICE_WATCH == cur_state){
+					
+					printk("change watch status is err\r\n");
 					atomic64_add(1,(atomic64_t*)&slice_mem_watch_change);
 					if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_WATCH_CHG)){
 						break;
@@ -374,7 +431,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}    
 				else if(SLICE_FIX == cur_state){
 					
-					printk("change status is err\r\n");
+					printk("change fix status is err\r\n");
 					if(atomic_read(&org_slice->_count) > 2)
 					{
 						printk("org_slice count is uper 2\r\n");
@@ -406,6 +463,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 		}
         case SLICE_OUT_QUE:
 		{
+			atomic64_add(1,(atomic64_t*)&slice_out_que_num);
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -423,15 +481,16 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}
 				else if(SLICE_ENQUE == cur_state){
 					
-					
+#if 0
 					if(per_cpu(in_watch_que_cnt,smp_processor_id())++  > 100)
 					{
 						per_cpu(in_watch_que_cnt,smp_processor_id()) = 0;
 						lfrwq_set_r_max_idx(slice_watch_que,lfrwq_get_w_idx(slice_watch_que));
+						splitter_thread_wakeup();
 					}
+#endif
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
-						atomic_add(1,&org_slice->_mapcount);
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
 							
 							if(0 != lfrwq_inq(slice_watch_que,data))
@@ -451,7 +510,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 						}
 						
 						/*make slice state volatile*/
-						atomic_sub(1,&org_slice->_mapcount);
 						do{	
 							/*make slice wprotect err or inq err*/
 							cur_state = get_slice_state(nid,slice_id);
@@ -494,13 +552,9 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 			{
 				cur_state = get_slice_state(nid,slice_id);
 							 
-				//printk("SLICE OUT WATCH QUE,cur_state is %d\r\n",cur_state);
-				//printk("slice_idx is %ld, nid is %d,slice_id is %lld\r\n",slice_idx,nid,slice_id);
 				if(!slice_watch_que_debug) return 0;
 
-				//printk("slice out watch que page count is %d\r\n",*(int*)&page->_count);
 				if(SLICE_IDLE == cur_state){
-					atomic_sub(1,&org_slice->_mapcount);
 					free_slice(slice_idx);
 					ret = 0;
 					atomic64_add(1,(atomic64_t*)&slice_mem_watch_free);
@@ -508,18 +562,13 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}
 				else if (SLICE_WATCH == cur_state)
 				{
-					if(atomic_read(&org_slice->_mapcount)!= 1)
+					if(!atomic_inc_not_zero(&org_slice->_count))
 					{
-						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
-						printk("mapcount err is %d\r\n",atomic_read(&org_slice->_mapcount));
-						atomic_sub(1,&org_slice->_mapcount);
-						break;
+						continue;
 					}
-					get_page(org_slice);
 					result = insert_sd_tree(slice_idx);
 					if(NULL == result){
 						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
-						atomic_sub(1,&org_slice->_mapcount);
 						put_page(org_slice);
 						atomic64_add(1,(atomic64_t*)slice_insert_sd_tree_err);
 						break;
@@ -544,7 +593,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 						{
 							atomic64_add(1,(atomic64_t*)&slice_merge_num);
 							while(0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_IDLE));
-							atomic_sub(1,&org_slice->_mapcount);
 							put_page(org_slice);
 							ret = 0;
 						}
@@ -554,7 +602,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 							atomic64_add(1,(atomic64_t*)&slice_change_ref_err);
 							while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
 							delete_sd_tree(slice_idx,SLICE_FIX);
-							atomic_sub(1,&org_slice->_mapcount);
 							put_page(org_slice);
 						}
 						break;
@@ -562,7 +609,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 				}
 				else if(SLICE_WATCH_CHG == cur_state){
 					
-					printk("watch chg state is err\r\n");
 					if(0 == change_slice_state(nid,slice_id,SLICE_WATCH_CHG,SLICE_VOLATILE)){
 						ret = 0;
 						break;
@@ -573,6 +619,48 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					break;
 				}
 			}while(1);
+			break;
+		}
+
+		case SLICE_OUT_DEAMON_QUE:
+		{
+			cur_state = get_slice_state(nid,slice_id);
+			
+			if(SLICE_ENQUE != cur_state && SLICE_IDLE != cur_state)
+			{
+				printk("err state in volatile proc 2 %lld\r\n",cur_state);
+			}
+			if(-1 == lfrwq_inq(slice_que,data)){
+				atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_err);
+				do
+				{
+					cur_state = get_slice_state(nid,slice_id);
+					if(SLICE_ENQUE == cur_state)
+					{
+						if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+						{
+							ret = 0;
+							break;
+						}
+					}
+					else if(SLICE_IDLE == cur_state)
+					{	
+						free_slice(slice_idx);
+						ret =0;
+						break;
+					}
+					else
+					{
+						printk("err state in volatile proc %lld\r\n",cur_state);
+					}
+
+				}while(1);
+			}
+			else
+			{
+				atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_ok);
+				ret = 0;
+			}
 			break;
 		}
 	
@@ -620,6 +708,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
 	void *msg = NULL;
 	int process_cnt = 0;
 	unsigned long long r_idx = 0;
+	int ret = -1;
 	if((!qh) || (!reader))
 	{
 		return -1;
@@ -631,15 +720,16 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
 		{
 			msg = NULL;
 			handle_msg_idx:
-			if(reader->local_idx >= lfrwq_get_r_max_idx(qh))
+			if(reader->local_idx > lfrwq_get_r_max_idx(qh))
 			{
+				ret= -1;
 				break;
 			}
 			
 			r_idx = lfrwq_deq_by_idx(qh,reader->local_idx,&msg);
 			if(!msg)
 			{
-
+				ret = -1;
 				break;
 			}
 			reader->local_idx = -1;
@@ -653,6 +743,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
 
 		if(!reader->local_pmt)
 		{
+			ret = -1;
 			break;
 		} 
 
@@ -660,7 +751,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
         {
             msg = NULL;
 			r_idx = lfrwq_alloc_r_idx(qh);
-            if(r_idx >= lfrwq_get_r_max_idx(qh))
+            if(r_idx > lfrwq_get_r_max_idx(qh))
             {
                 reader->local_idx = r_idx;
                 goto handle_msg_idx;        
@@ -678,14 +769,25 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
                 handle_msg:               
                 reader->local_pmt--;
 #if 1
+
+				preempt_disable();
 				if(qh == slice_que)
                 {
                     process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_QUE,msg);
                 }
-                else
+                else if(qh == slice_watch_que)
                 {
                     process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg);
                 }
+				else if(qh == slice_deamon_que)
+				{
+                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_DEAMON_QUE,msg);
+				}
+				else
+				{
+					printk("que desc err\r\n");
+				}
+				preempt_enable();
 #endif
                 if(0 == reader->r_cnt)
                 {
@@ -704,6 +806,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
 #if 1	
 				if(process_cnt++ >2000)
 				{
+					ret = -2;
 					break;
 				}
 #endif
@@ -717,12 +820,13 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
         }
 		if(process_cnt++ >2000)
 		{
+			ret = -2;
 			break;
 		}
 
     }while(1);
     
-    return 0;
+    return ret;
 }
 
 unsigned int slice_debug_area_cnt = 0;

@@ -10,8 +10,16 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/rmap.h>
+#include <linux/kthread.h>
+#include <linux/sched.h>
+#include <pone/slice_state.h>
+#include <pone/slice_state_adpter.h>
 #include "vector.h"
 #include "chunk.h"
+
+
+struct task_struct *spt_thread_id[128] = {NULL};
+
 unsigned long long data_map_key_cnt = 0;
 unsigned long long data_unmap_key_cnt = 0;
 struct page *get_page_ptr(char *pdata)
@@ -50,7 +58,6 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
-			atomic_sub(1,&page->_mapcount);
 			put_page(page);
 		}
 	}
@@ -68,9 +75,70 @@ char *tree_construct_data_from_key(char *pkey)
     return (char *)pdata;
 }
 
+static int splitter_process_thread(void *data)
+{
+	int cpu = smp_processor_id();
+	int check  = per_cpu(process_enter_check,cpu);
+	lfrwq_reader *watch_reader =  &per_cpu(int_slice_watch_que_reader,cpu);
+	lfrwq_reader *reader =  &per_cpu(int_slice_que_reader,cpu);
+	lfrwq_reader *deamon_reader = &per_cpu(int_slice_deamon_que_reader,cpu);
+	int ret = 0;
+	int w_ret = 0;
+	int d_ret = 0;
+	__set_current_state(TASK_RUNNING);
+	do
+	{
+		if(cpu%2)
+		{
+			w_ret = process_state_que(slice_watch_que,watch_reader);
+			ret = process_state_que(slice_que,reader);
+		}
+		else
+		{
+			ret = process_state_que(slice_que,reader);
+			w_ret = process_state_que(slice_watch_que,watch_reader);
+		}
+
+		if(per_cpu(volatile_cnt,cpu))
+		{
+			splitter_deamon_wakeup();
+			set_deamon_run();
+			per_cpu(volatile_cnt,cpu) = 0;	
+		}
+
+		d_ret = process_state_que(slice_deamon_que,deamon_reader);
+		
+		if((w_ret != -2) && (ret!= -2)&&(d_ret !=-2))
+		{
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+		}
+
+	}while(!kthread_should_stop());
+
+	return 0;
+
+}
+
+void splitter_thread_wakeup(void)
+{
+	int i = 0;
+	for(i = 0;i <num_online_cpus();i++)
+	{
+		if(spt_thread_id[i] != NULL)
+		{
+			if(spt_thread_id[i]->state != TASK_RUNNING)
+			{
+				wake_up_process(spt_thread_id[i]);
+			}
+		}
+	}
+}
+
 int pone_case_init(void)
 {
 	int thread_num = 0;
+	int cpu = 0;
 	set_data_size(PAGE_SIZE);
 	
 	thread_num = num_online_cpus()+1;
@@ -96,6 +164,26 @@ int pone_case_init(void)
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
+	for_each_online_cpu(cpu)
+	{
+		if(cpu%2)
+		{
+			continue;
+		}
+		spt_thread_id[cpu] = kthread_create(splitter_process_thread,cpu,"spthrd_%d",cpu);
+		if(IS_ERR(spt_thread_id[cpu]))
+		{
+			spt_thread_id[cpu] = NULL;
+			printk("err create spt_thread in cpu %d\r\n",cpu);
+			return -1;
+		}
+		else
+		{
+			kthread_bind(spt_thread_id[cpu],cpu);
+			wake_up_process(spt_thread_id[cpu]);
+		}
+	
+	}
 	return 0;
 }
 unsigned long long insert_sd_tree_ok =0;
@@ -107,11 +195,11 @@ char * insert_sd_tree(unsigned long slice_idx)
 	{
 		spt_thread_start(g_thrd_id);
 		r_data = insert_data(pgclst,(char*)page);
+		spt_thread_exit(g_thrd_id);
 		if(r_data !=NULL)
 		{
 			atomic64_add(1,(atomic64_t*)&insert_sd_tree_ok);
 		}
-		spt_thread_exit(g_thrd_id);
 	}
 	return r_data;
 }
@@ -124,9 +212,12 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 
 	if(page)
 	{
-		per_cpu(process_enter_check,cpu) = 1;
+		preempt_disable();
 		spt_thread_start(g_thrd_id);
 		ret = delete_data(pgclst,page);
+		preempt_enable();
+		spt_thread_exit(g_thrd_id);
+		
 		if(ret < 0)
 		{
 			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
@@ -138,8 +229,6 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		{
 			atomic64_add(1,(atomic64_t*)&delete_sd_tree_ok);
 		}
-		spt_thread_exit(g_thrd_id);
-		per_cpu(process_enter_check,cpu) = 0;
 	}
 	return ret;
 

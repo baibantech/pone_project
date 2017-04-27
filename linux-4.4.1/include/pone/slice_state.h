@@ -12,14 +12,15 @@
 #define SLICE_CHANGE 4
 #define SLICE_OUT_QUE 5
 #define SLICE_OUT_WATCH_QUE 6
-
+#define SLICE_OUT_DEAMON_QUE 7
 
 #define  SLICE_MEM 1
 #define  SLICE_FILE 2
 
 enum mem_slice_state
 {
-    SLICE_IDLE,
+    SLICE_NULL,
+	SLICE_IDLE,
     SLICE_ENQUE,
     SLICE_WATCH,
     SLICE_WATCH_CHG,
@@ -55,6 +56,7 @@ typedef struct slice_reverse
 extern slice_state_control_block *global_block;
 extern lfrwq_t *slice_que;
 extern lfrwq_t *slice_watch_que;
+extern lfrwq_t *slice_deamon_que;
 
 extern int slice_state_control_init(void);
 extern int process_slice_state(unsigned long slice_idx,int op,void *data);
@@ -67,6 +69,11 @@ extern int process_state_que(lfrwq_t *qh,lfrwq_reader *reader);
 extern int change_slice_state(unsigned int nid,unsigned long long slice_id,unsigned long long old_state,unsigned long long new_state);
 extern int is_pone_init(void);
 extern void pre_fix_slice_check(void *data);
+void set_deamon_run(void);
+int need_wakeup_deamon(void);
+void splitter_deamon_wakeup(void);
+int slice_deamon_init(void);
+extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 static inline int slice_idx_to_node(unsigned long slice_idx)
 {
     int i ;

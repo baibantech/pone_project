@@ -535,6 +535,7 @@ unsigned int db_alloc(cluster_head_t *pclst, spt_dh **db)
     atomic_sub(1, (atomic_t *)&pclst->free_dblk_cnt);
     atomic_add(1, (atomic_t *)&pclst->used_dblk_cnt);
     *db = (spt_dh *)pdb;
+	(*db)->rsv = 0;
     (*db)->pdata = NULL;
     return db_id;
 }
@@ -637,7 +638,18 @@ unsigned int db_alloc_from_buf(cluster_head_t *pclst, int thread_id, spt_dh **db
     }
     ret_id = pnode->id;
     *db = (spt_dh *)db_id_2_ptr(pclst,ret_id);
-    pnode->id = SPT_NULL;
+    
+	if((*db)->pdata != NULL)
+	{
+		if(spt_data_free_flag(*db))
+		{
+			pclst->freedata((*db)->pdata);
+		}
+	}
+
+	(*db)->rsv = 0;	
+	
+	pnode->id = SPT_NULL;
     if(pthrd_data->data_alloc_out == pthrd_data->data_free_in)
     {
         pthrd_data->data_alloc_out = pthrd_data->data_free_in = SPT_NULL;

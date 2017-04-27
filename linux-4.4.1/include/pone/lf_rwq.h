@@ -58,9 +58,9 @@ u64 lfrwq_get_blk_idx(lfrwq_t* qh,u64 idx);
 u64 lfrwq_alloc_r_idx(lfrwq_t *qh);
 
 u64 lfrwq_get_w_idx(lfrwq_t *qh);
-void lfrwq_set_r_max_idx(lfrwq_t *qh,u64 w_idx);
+int lfrwq_set_r_max_idx(lfrwq_t *qh,u64 w_idx);
 u64 lfrwq_get_r_max_idx(lfrwq_t *qh);
-
+int lfrwq_is_null(lfrwq_t* qh);
 
 #define lfrwq_debug(f, a...)	{ \
 					printk ("LFRWQ DEBUG (%s, %d): %s:", \

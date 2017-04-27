@@ -1610,6 +1610,14 @@ static int rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc)
 	pgoff_t pgoff;
 	struct anon_vma_chain *avc;
 	int ret = SWAP_AGAIN;
+	#ifdef CONFIG_PONE_MODULE
+
+	if(SLICE_NULL != get_slice_state_by_id(page_to_pfn(page)))
+	{
+		return ret;
+	}
+	#endif
+
 
 	anon_vma = rmap_walk_anon_lock(page, rwc);
 	if (!anon_vma)
@@ -1745,6 +1753,11 @@ void hugepage_add_new_anon_rmap(struct page *page,
 #endif /* CONFIG_HUGETLB_PAGE */
 
 #ifdef CONFIG_PONE_MODULE
+unsigned long long pte_err1;
+unsigned long long pte_err2;
+unsigned long long pte_err3;
+unsigned long long pte_err4;
+unsigned long long pte_err5;
 pte_t *__page_try_check_address(struct page *page, struct mm_struct *mm,
 					  unsigned long address, spinlock_t **ptlp, int sync)
 {
@@ -1753,16 +1766,22 @@ pte_t *__page_try_check_address(struct page *page, struct mm_struct *mm,
 	spinlock_t *ptl;
 
 	if (unlikely(PageHuge(page))) {
+		atomic64_add(1,(atomic64_t*)&pte_err1);
 		return NULL;
 	}
 
 	pmd = mm_find_pmd(mm, address);
 	if (!pmd)
-	return NULL;
+	{
+		atomic64_add(1,(atomic64_t*)&pte_err2);
+		return NULL;
+	}
 
 	pte = pte_offset_map(pmd, address);
 	/* Make a quick check before getting the lock */
 	if (!sync && !pte_present(*pte)) {
+		
+		atomic64_add(1,(atomic64_t*)&pte_err3);
 		pte_unmap(pte);
 		return NULL;
 	}
@@ -1775,8 +1794,11 @@ pte_t *__page_try_check_address(struct page *page, struct mm_struct *mm,
 			*ptlp = ptl;
 			return pte;
 		}
+		atomic64_add(1,(atomic64_t*)&pte_err4);
 		pte_unmap_unlock(pte, ptl);
 	}
+	atomic64_add(1,(atomic64_t*)&pte_err5);
+		
 	return NULL;
 }
 
@@ -1848,6 +1870,9 @@ out:
 }
 unsigned long long rmap_rwsem_count = 0;
 unsigned long long rmap_rwsem_release_count = 0;
+unsigned long long rmap_get_anon_vma_err = 0;
+unsigned long long rmap_lock_num_err = 0;
+unsigned long long rmap_pte_null_err = 0;
 static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 {
 	struct anon_vma *anon_vma;
@@ -1861,17 +1886,22 @@ static int rmap_walk_pone_anon(struct page *page, struct rmap_walk_control *rwc)
 
 	anon_vma = rmap_walk_anon_lock(page, rwc);
 	if (!anon_vma)
+	{
+		atomic64_add(1,(atomic64_t*)&rmap_get_anon_vma_err);
 		return ret;
+	}
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
 		struct vm_area_struct *vma = avc->vma;
 		unsigned long address = vma_address(page, vma);
 		if(127 == lock_num)
 		{
+			atomic64_add(1,(atomic64_t*)&rmap_lock_num_err);
 			goto free_lock;
 		}
 		pte[lock_num] = __page_try_check_address(page, vma->vm_mm,address, &ptl[lock_num],0);
 		if((NULL == pte[lock_num]))
 		{
+			atomic64_add(1,(atomic64_t*)&rmap_pte_null_err);
 			goto free_lock;
 		}
 		lock_num++;

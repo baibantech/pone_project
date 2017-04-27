@@ -325,10 +325,22 @@ struct pone_desc* insert_sd_tree(unsigned long slice_idx)
 #endif
 static void slice_merge_timer_process(unsigned long data)
 {
-	lfrwq_set_r_max_idx(slice_que,lfrwq_get_w_idx(slice_que));
+	int ret = 0;
+	ret += lfrwq_set_r_max_idx(slice_que,lfrwq_get_w_idx(slice_que));
 
-	lfrwq_set_r_max_idx(slice_watch_que,lfrwq_get_w_idx(slice_watch_que));
+	ret += lfrwq_set_r_max_idx(slice_watch_que,lfrwq_get_w_idx(slice_watch_que));
+	
+	ret += lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
+	
+	if(ret)
+	{
+		splitter_thread_wakeup();
+	}
 
+	if(need_wakeup_deamon())
+	{
+		splitter_deamon_wakeup();
+	}
 
 	slice_merge_timer.data = data;
     slice_merge_timer.expires = jiffies + msecs_to_jiffies(data);
@@ -347,9 +359,11 @@ void slice_merge_timer_init(unsigned long time_ms)
 
 DEFINE_PER_CPU(lfrwq_reader , int_slice_que_reader);
 DEFINE_PER_CPU(lfrwq_reader , int_slice_watch_que_reader);
+DEFINE_PER_CPU(lfrwq_reader , int_slice_deamon_que_reader);
 DEFINE_PER_CPU(int,process_enter_check);
 DEFINE_PER_CPU(int,in_que_cnt);
 DEFINE_PER_CPU(int,in_watch_que_cnt);
+DEFINE_PER_CPU(int,volatile_cnt);
 unsigned long long process_que_num = 0;
 void slice_que_reader_init(void)
 {
@@ -368,6 +382,14 @@ void slice_que_reader_init(void)
 		memset(reader,0,sizeof(lfrwq_reader));
 		reader->local_idx = -1;
 	}
+	
+	for_each_online_cpu(cpu)
+	{
+		reader = &per_cpu(int_slice_deamon_que_reader,cpu);
+		memset(reader,0,sizeof(lfrwq_reader));
+		reader->local_idx = -1;
+	}
+	
 	for_each_online_cpu(cpu)
 	{
 		check  = &per_cpu(process_enter_check,cpu);
@@ -385,6 +407,11 @@ void slice_que_reader_init(void)
 	for_each_online_cpu(cpu)
 	{
 		per_cpu(in_watch_que_cnt,cpu) = 0;
+	
+	}
+	for_each_online_cpu(cpu)
+	{
+		per_cpu(volatile_cnt,cpu) = 0;
 	}
 	return ;
 }

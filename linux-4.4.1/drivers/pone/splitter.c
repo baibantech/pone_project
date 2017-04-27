@@ -1967,6 +1967,40 @@ int spt_divided_scan(cluster_head_t *pclst)
     spt_order_array_free(psort);
     return SPT_OK;
 }
+struct debug_map_cnt
+{
+    int idx;
+    int line[65536];
+};
+u64 map_cnt[48] = {0};
+u64 unmap_cnt[48] = {0};
+
+struct debug_map_cnt map_st[48] = {0};
+struct debug_map_cnt unmap_st[48] = {0};
+
+void printk_debug_map_cnt(void)
+{
+	int i,j;
+
+	for(i = 0;i <48;i++)
+	{
+		if(map_cnt[i] == unmap_cnt[i])
+		{
+			continue;
+		}
+		printk("thread id %d,map cnt is %lld,umap_cnt %lld\r\n",i,map_cnt[i],unmap_cnt[i]);
+		for(j =0 ;j < map_st[i].idx; j++ )
+		{
+			printk("map line num is %d\r\n",map_st[i].line[j]);
+		}
+		for(j =0 ;j < unmap_st[i].idx; j++ )
+		{
+			printk("umap line num is %d\r\n",unmap_st[i].line[j]);
+		}
+
+	}
+}
+
 
 /*ret:1查询不到；0删除成功；-1错误*/
 int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
@@ -1986,6 +2020,13 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     spt_dh *pdh;
 //    spt_cb_get_key get_key;
     spt_cb_end_key finish_key_cb;
+
+    if(map_cnt[g_thrd_id] != unmap_cnt[g_thrd_id])
+    {
+        return SPT_ERR;
+    }
+    map_cnt[g_thrd_id] = unmap_cnt[g_thrd_id] = 0;
+    map_st[g_thrd_id].idx = unmap_st[g_thrd_id].idx = 0;
 
 //    query_info_t *pqinfo = pquery_info;
     if(pclst->status == SPT_WAIT_AMT)
@@ -2010,6 +2051,9 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
         prdata = pclst->get_key(pqinfo->data);
     else
         prdata = pqinfo->get_key(pqinfo->data);
+    map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
+    map_st[g_thrd_id].idx++;
+    map_cnt[g_thrd_id]++;
     if(pqinfo->get_key_end == NULL)
     {
         finish_key_cb = pclst->get_key_end;
@@ -2064,6 +2108,9 @@ refind_forward:
             if(pcur == pqinfo->pstart_vec)
             {
                 finish_key_cb(prdata);
+                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                unmap_st[g_thrd_id].idx++;
+                unmap_cnt[g_thrd_id]++;
                 return SPT_DO_AGAIN;
             }
             else
@@ -2077,7 +2124,12 @@ refind_forward:
     {
         if(pcur == pqinfo->pstart_vec)
         {
+            
             finish_key_cb(prdata);
+            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+            unmap_st[g_thrd_id].idx++;
+            unmap_cnt[g_thrd_id]++;
+            
             return SPT_DO_AGAIN;
         }
         else
@@ -2090,6 +2142,9 @@ refind_forward:
     {
         cur_data = SPT_INVALID;
         pclst->get_key_in_tree_end(pcur_data);
+        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+        unmap_st[g_thrd_id].idx++;
+        unmap_cnt[g_thrd_id]++;
     }
 
     fs_pos = find_fs(prdata, startbit, endbit);
@@ -2105,6 +2160,9 @@ refind_forward:
                 if(cur_data != SPT_INVALID)
                 {
                     pclst->get_key_in_tree_end(pcur_data);
+                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                    unmap_st[g_thrd_id].idx++;
+                    unmap_cnt[g_thrd_id]++;
                     if(cur_vec.rd != cur_data)
                     {
                         cur_data = SPT_INVALID;
@@ -2116,13 +2174,22 @@ refind_forward:
                 {
                     pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
                     pcur_data = pclst->get_key_in_tree( pdh->pdata);
+                    
+                    map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
+                    map_st[g_thrd_id].idx++;
+                    map_cnt[g_thrd_id]++;
                     smp_mb();
                 }
                 else if(cur_data == SPT_NULL)
                 {
                     switch(op){
                     case SPT_OP_FIND:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         return ret;
                     case SPT_OP_INSERT:
                         st_insert_info.pkey_vec= pcur;
@@ -2130,23 +2197,39 @@ refind_forward:
                         ret = do_insert_first_set(pclst, &st_insert_info, pdata);
                         if(ret == SPT_DO_AGAIN)
                         {
+							cur_data = SPT_INVALID;
                             goto refind_start;
                         }
                         else if(ret >= 0)
                         {
                             pqinfo->db_id = ret;
                             pqinfo->data = 0;
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return SPT_OK;
                         }
                         else
                         {
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         return ret;
                     default:
                         break;
@@ -2203,6 +2286,9 @@ refind_forward:
                                 }
                                 cur_data = SPT_INVALID;
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                         }                
                     }
@@ -2216,10 +2302,18 @@ refind_forward:
                         retb = vec_free_to_buf(pclst, vecid, g_thrd_id);
                         if(retb != SPT_OK)
                         {
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                             if(ret == SPT_OK)
                                 return ret;
@@ -2333,6 +2427,9 @@ refind_forward:
                                 {
                                     cur_data = SPT_INVALID;
                                     pclst->get_key_in_tree_end(pcur_data);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
                                 }
                             }                
                         }
@@ -2349,8 +2446,16 @@ refind_forward:
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
                                 }                            
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 if(ret == SPT_OK)
                                     return ret;
                                 return retb;
@@ -2437,10 +2542,18 @@ refind_forward:
                             retb = vec_free_to_buf(pclst, vecid, g_thrd_id);
                             if(retb != SPT_OK)
                             {
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
                                 }
                                 if(ret == SPT_OK)
                                     return ret;
@@ -2476,8 +2589,16 @@ refind_forward:
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return ret;
                         case SPT_OP_INSERT:
                             st_insert_info.pkey_vec = pcur;
@@ -2492,28 +2613,52 @@ refind_forward:
                             {
                                 pqinfo->db_id = ret;
                                 pqinfo->data = 0;
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
                                 }
                                 return SPT_OK;
                             }
                             else
                             {
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
                                 }
                                 return ret;
                             }
                             break;
                         case SPT_OP_DELETE:
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                             return ret;
                         default:
@@ -2530,6 +2675,9 @@ refind_forward:
                 {
                     pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
                     pcur_data = pclst->get_key_in_tree(pdh->pdata);
+                    map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
+                    map_st[g_thrd_id].idx++;
+                    map_cnt[g_thrd_id]++;
                     smp_mb();
                 }
                 else if(cur_data == SPT_DO_AGAIN)
@@ -2541,7 +2689,12 @@ refind_forward:
                 {
                     switch(op){
                     case SPT_OP_FIND:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         return ret;
                     case SPT_OP_INSERT:
                         st_insert_info.pkey_vec= pcur;
@@ -2556,17 +2709,32 @@ refind_forward:
                         {
                             pqinfo->db_id = ret;
                             pqinfo->data = 0;
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return SPT_OK;
                         }
                         else
                         {
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         return ret;
                     default:
                         break;
@@ -2576,7 +2744,12 @@ refind_forward:
                 else
                 {
                     //SPT_NOMEM or SPT_WAIT_AMT;
+                    
                     finish_key_cb(prdata);
+                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                    unmap_st[g_thrd_id].idx++;
+                    unmap_cnt[g_thrd_id]++;
+                    
                     return cur_data;
                 }
                 
@@ -2616,10 +2789,18 @@ refind_forward:
                             pqinfo->vec_id = cur_vecid;
                             pqinfo->cmp_result = 1;
                         }
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
                     case SPT_OP_INSERT:
@@ -2643,28 +2824,52 @@ refind_forward:
                         {
                             pqinfo->db_id = ret;
                             pqinfo->data = 0;
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                             return SPT_OK;
                         }
                         else
                         {
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
                     default:
@@ -2682,10 +2887,18 @@ refind_forward:
                             pqinfo->vec_id = cur_vecid;
                             pqinfo->cmp_result = -1;
                         }
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
                     case SPT_OP_INSERT:
@@ -2711,28 +2924,52 @@ refind_forward:
                         {
                             pqinfo->db_id = ret;
                             pqinfo->data = 0;
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                             return SPT_OK;
                         }
                         else
                         {
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
                             }
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
                     default:
@@ -2749,6 +2986,9 @@ refind_forward:
                     goto refind_start;
                 cur_data = SPT_INVALID;
                 pclst->get_key_in_tree_end(pcur_data);
+                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                unmap_st[g_thrd_id].idx++;
+                unmap_cnt[g_thrd_id]++;
             }
             while(fs_pos > startbit)
             {
@@ -2783,7 +3023,12 @@ refind_forward:
                                 else
                                 {
                                     //SPT_NOMEM or SPT_WAIT_AMT;
+                                    
                                     finish_key_cb(prdata);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
+                                    
                                     return cur_data;
                                 }
                             }
@@ -2793,7 +3038,12 @@ refind_forward:
                                 pqinfo->vec_id = cur_vecid;
                                 pqinfo->cmp_result = -1;
                             }
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return ret;
                         case SPT_OP_INSERT:
                             st_insert_info.pkey_vec= pcur;
@@ -2810,17 +3060,32 @@ refind_forward:
                             {
                                 pqinfo->db_id = ret;
                                 pqinfo->data = 0;
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 return SPT_OK;
                             }
                             else
                             {
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 return ret;
                             }
                             break;
                         case SPT_OP_DELETE:
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return ret;
                         default:
                             break;
@@ -2856,7 +3121,12 @@ refind_forward:
                             retb = vec_free_to_buf(pclst, vecid, g_thrd_id);
                             if(retb != SPT_OK)
                             {
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 if(ret == SPT_OK)
                                     return ret;
                                 return retb;
@@ -2946,6 +3216,9 @@ refind_forward:
                                     {
                                         cur_data = SPT_INVALID;
                                         pclst->get_key_in_tree_end(pcur_data);
+                                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                        unmap_st[g_thrd_id].idx++;
+                                        unmap_cnt[g_thrd_id]++;
                                     }
                                 }                
                             }
@@ -2959,7 +3232,12 @@ refind_forward:
                                 retb = vec_free_to_buf(pclst, vecid, g_thrd_id);
                                 if(retb != SPT_OK)
                                 {
+                                    
                                     finish_key_cb(prdata);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
+                                    
                                     if(ret == SPT_OK)
                                         return ret;
                                     return retb;
@@ -2993,7 +3271,12 @@ refind_forward:
                         {
                             switch(op){
                             case SPT_OP_FIND:
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 return ret;
                             case SPT_OP_INSERT:
                                 signpost = cur_vec.idx << SPT_VEC_SIGNPOST_BIT;
@@ -3010,17 +3293,32 @@ refind_forward:
                                 {
                                     pqinfo->db_id = ret;
                                     pqinfo->data = 0;
+                                    
                                     finish_key_cb(prdata);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
+                                    
                                     return SPT_OK;
                                 }
                                 else
                                 {
+                                    
                                     finish_key_cb(prdata);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
+                                    
                                     return ret;
                                 }
                                 break;
                             case SPT_OP_DELETE:
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 return ret;
                             default:
                                 break;
@@ -3068,7 +3366,12 @@ refind_forward:
                                 retb = vec_free_to_buf(pclst, vecid, g_thrd_id);
                                 if(retb != SPT_OK)
                                 {
+                                    
                                     finish_key_cb(prdata);
+                                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_cnt[g_thrd_id]++;
+                                    
                                     if(ret == SPT_OK)
                                         return ret;
                                     return retb;
@@ -3121,7 +3424,12 @@ refind_forward:
                             else
                             {
                                 //SPT_NOMEM or SPT_WAIT_AMT;
+                                
                                 finish_key_cb(prdata);
+                                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                                unmap_st[g_thrd_id].idx++;
+                                unmap_cnt[g_thrd_id]++;
+                                
                                 return cur_data;
                             }
                         }
@@ -3131,7 +3439,12 @@ refind_forward:
                             pqinfo->vec_id = cur_vecid;
                             pqinfo->cmp_result = -1;
                         }
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         return ret;
                     case SPT_OP_INSERT:
                         st_insert_info.pkey_vec= pcur;
@@ -3148,17 +3461,32 @@ refind_forward:
                         {
                             pqinfo->db_id = ret;
                             pqinfo->data = 0;
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return SPT_OK;
                         }
                         else
                         {
+                            
                             finish_key_cb(prdata);
+                            unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                            unmap_st[g_thrd_id].idx++;
+                            unmap_cnt[g_thrd_id]++;
+                            
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
+                        
                         finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+                        
                         return ret;
                     default:
                         break;
@@ -3199,6 +3527,9 @@ refind_forward:
     else
     {
         pclst->get_key_in_tree_end(pcur_data);
+        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+        unmap_st[g_thrd_id].idx++;
+        unmap_cnt[g_thrd_id]++;
     }
     //pdh = (spt_dh *)(pcur_data - sizeof(spt_dh));
 
@@ -3210,7 +3541,12 @@ refind_forward:
             pqinfo->vec_id = cur_vecid;
             pqinfo->cmp_result = 0;
         }
+        
         finish_key_cb(prdata);
+        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+        unmap_st[g_thrd_id].idx++;
+        unmap_cnt[g_thrd_id]++;
+        
         return ret;
     case SPT_OP_INSERT:
         while(1)
@@ -3234,7 +3570,12 @@ refind_forward:
         }
         pqinfo->db_id = cur_data;
         pqinfo->ref_cnt = va_new;
+        
         finish_key_cb(prdata);
+        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+        unmap_st[g_thrd_id].idx++;
+        unmap_cnt[g_thrd_id]++;
+        
         return ret;
     case SPT_OP_DELETE:
         pqinfo->db_id = cur_data;
@@ -3243,7 +3584,12 @@ refind_forward:
             va_old = pdh->ref;
             if(va_old == 0)
             {
+                
                 finish_key_cb(prdata);
+                unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                unmap_st[g_thrd_id].idx++;
+                unmap_cnt[g_thrd_id]++;
+                
                 return SPT_NOT_FOUND;
             }
             else if(va_old > 0)
@@ -3268,7 +3614,12 @@ refind_forward:
                 {
                     spt_set_data_free_flag(pdh, pqinfo->free_flag);
                     db_free_to_buf(pclst,cur_data, g_thrd_id);
+                    
                     finish_key_cb(prdata);
+                    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                    unmap_st[g_thrd_id].idx++;
+                    unmap_cnt[g_thrd_id]++;
+                    
                     pqinfo->ref_cnt = 0;
                     return SPT_OK;
                 }
@@ -3302,14 +3653,24 @@ refind_forward:
                 goto refind_start;
             }
         }
+        
         finish_key_cb(prdata);
+        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+        unmap_st[g_thrd_id].idx++;
+        unmap_cnt[g_thrd_id]++;
+        
         pqinfo->ref_cnt = va_new;
         atomic64_add(1,(atomic64_t *)&g_dbg_info.delete_ok);
         return SPT_OK;
     default:
         break;
     }
+    
     finish_key_cb(prdata);
+    unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+    unmap_st[g_thrd_id].idx++;
+    unmap_cnt[g_thrd_id]++;
+    
     return SPT_ERR;
 }
 
