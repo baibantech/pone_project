@@ -252,12 +252,21 @@ void splitter_deamon_wakeup(void)
 
 int slice_deamon_init(void)
 {
-		
+	lfrwq_reader *reader;
+	int cpu = 0;
     slice_deamon_que = lfrwq_init(8192*32,2048,50);
     if(!slice_deamon_que)
     {
         return -1;
     }
+	
+	for_each_online_cpu(cpu)
+	{
+		reader = &per_cpu(int_slice_deamon_que_reader,cpu);
+		memset(reader,0,sizeof(lfrwq_reader));
+		reader->local_idx = -1;
+	}
+
 	spt_deamon_thread = kthread_create(splitter_daemon_thread,NULL,"spdeamon");
 	if(IS_ERR(spt_deamon_thread))
 	{

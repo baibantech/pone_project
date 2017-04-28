@@ -17,6 +17,8 @@
 #define  SLICE_MEM 1
 #define  SLICE_FILE 2
 
+#define SLICE_OP_CLUSTER_QUE 1
+
 enum mem_slice_state
 {
     SLICE_NULL,
@@ -53,19 +55,27 @@ typedef struct slice_reverse
 
 }slice_reverse;
 
+#ifdef SLICE_OP_CLUSTER_QUE
+int lfrwq_in_cluster_watch_que(void *data,unsigned long  que);
+int lfrwq_in_cluster_que(void *data,unsigned long que);
+void splitter_wakeup_cluster(void);
+#endif
+
+
 extern slice_state_control_block *global_block;
 extern lfrwq_t *slice_que;
 extern lfrwq_t *slice_watch_que;
 extern lfrwq_t *slice_deamon_que;
 
+extern void slice_per_cpu_count_init(void); 
 extern int slice_state_control_init(void);
-extern int process_slice_state(unsigned long slice_idx,int op,void *data);
+extern int process_slice_state(unsigned long slice_idx,int op,void *data,unsigned long  que);
 
 extern int process_slice_check(void);
 extern int process_slice_file_check(unsigned long ino);
 
 extern int slice_que_resource_init(void);
-extern int process_state_que(lfrwq_t *qh,lfrwq_reader *reader);
+extern int process_state_que(lfrwq_t *qh,lfrwq_reader *reader,int op);
 extern int change_slice_state(unsigned int nid,unsigned long long slice_id,unsigned long long old_state,unsigned long long new_state);
 extern int is_pone_init(void);
 extern void pre_fix_slice_check(void *data);

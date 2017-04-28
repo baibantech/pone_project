@@ -197,15 +197,20 @@ MODULE_DESCRIPTION("merge_mem");
 #endif
 
 //#define OP_SOFT_IRQ  0
-
+extern void slice_debug_area_init(void);
 static int __init merge_mem_init(void)
 {
+#ifdef SLICE_OP_CLUSTER_QUE
+
+#else
 	if(0 != slice_que_resource_init())
 	{
 		printk("slice_que_resource_init err\r\n");
 		return -1;
 	}
-	slice_que_reader_init();
+#endif
+	slice_per_cpu_count_init();
+	slice_debug_area_init();
 	pone_case_init();
 #ifdef OP_SOFT_IRQ
 	open_softirq(PONE_SOFTIRQ,process_que_interrupt);

@@ -280,8 +280,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice volatile in que err  cnt: %lld\r\n",slice_volatile_in_que_err);
 	len += sprintf(buf +len ,"slice deamon find volatile  cnt: %lld\r\n",slice_deamon_find_volatile);
 	len += sprintf(buf +len ,"deamon task state: %d\r\n",spt_deamon_thread->state);
-	len += sprintf(buf +len ,"que len: %d\r\n",lfrwq_len(slice_que));
-	len += sprintf(buf +len ,"watch que len: %d\r\n",lfrwq_len(slice_watch_que));
+	//len += sprintf(buf +len ,"que len: %d\r\n",lfrwq_len(slice_que));
+	//len += sprintf(buf +len ,"watch que len: %d\r\n",lfrwq_len(slice_watch_que));
 	len += sprintf(buf +len ,"deamon que len: %d\r\n",lfrwq_len(slice_deamon_que));
 
 

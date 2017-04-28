@@ -62,7 +62,6 @@ int ljy_printk_count = 0;
 int global_pone_init = 0;
 
 void slice_debug_area_insert(struct page *page);
-int slice_debug_area_init(void);
 int is_in_slice_debug_area(struct page *page);
 
 int is_pone_init(void)
@@ -239,7 +238,7 @@ int slice_que_resource_init(void)
         vfree(slice_que);
         return -1;
     }
-	slice_debug_area_init();
+	slice_que_reader_init();
     return 0;
 }
 
@@ -291,8 +290,8 @@ void pre_fix_slice_check(void *data)
 }
 
 EXPORT_SYMBOL(pre_fix_slice_check);
-
-int process_slice_state(unsigned long slice_idx ,int op,void *data)
+unsigned long long proc_deamon_cnt;
+int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long  que)
 {
     unsigned long long cur_state;
     unsigned int  nid ;
@@ -342,7 +341,13 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					break;
 				}
 				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE)) {
-					if(-1 == lfrwq_inq(slice_que,data)){
+					
+#ifdef SLICE_OP_CLUSTER_QUE
+					if(-1 == lfrwq_in_cluster_que(data,que))
+#else
+					if(-1 == lfrwq_inq(slice_que,data))
+#endif
+					{
 						atomic64_add(1,(atomic64_t*)&slice_in_que_err);
 						while(0 != change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE));
 					}
@@ -492,8 +497,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
-							
-							if(0 != lfrwq_inq(slice_watch_que,data))
+#ifdef SLICE_OP_CLUSTER_QUE
+							if(-1 ==  lfrwq_in_cluster_watch_que(data,smp_processor_id()/2))
+#else
+							if(-1 == lfrwq_inq(slice_watch_que,data))
+#endif
 							{
 								atomic64_add(1,(atomic64_t*)&slice_in_watch_que_err);
 							}
@@ -624,13 +632,22 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data)
 
 		case SLICE_OUT_DEAMON_QUE:
 		{
+			unsigned long long que_id;
 			cur_state = get_slice_state(nid,slice_id);
 			
 			if(SLICE_ENQUE != cur_state && SLICE_IDLE != cur_state)
 			{
 				printk("err state in volatile proc 2 %lld\r\n",cur_state);
 			}
-			if(-1 == lfrwq_inq(slice_que,data)){
+#ifdef SLICE_OP_CLUSTER_QUE
+		
+			que_id = atomic64_add_return(1,(atomic64_t*)&proc_deamon_cnt);
+			if(-1 == lfrwq_in_cluster_que(data,que_id>>10))
+#else
+			if(-1 == lfrwq_inq(slice_que,data))
+#endif
+			{
+	
 				atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_err);
 				do
 				{
@@ -703,7 +720,7 @@ int process_slice_file_check(unsigned long i_ino)
 	return 0;
 }
 
-int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
+int process_state_que(lfrwq_t *qh,lfrwq_reader *reader,int op)
 {
 	void *msg = NULL;
 	int process_cnt = 0;
@@ -771,17 +788,18 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader)
 #if 1
 
 				preempt_disable();
-				if(qh == slice_que)
+				
+				if(op  == 1)
                 {
-                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_QUE,msg);
+                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_QUE,msg,-1);
                 }
-                else if(qh == slice_watch_que)
+                else if(op == 2)
                 {
-                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg);
+                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg,-1);
                 }
-				else if(qh == slice_deamon_que)
+				else if(op == 3)
 				{
-                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_DEAMON_QUE,msg);
+                    process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_DEAMON_QUE,msg,-1);
 				}
 				else
 				{

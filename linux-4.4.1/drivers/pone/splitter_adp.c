@@ -17,6 +17,14 @@
 #include "vector.h"
 #include "chunk.h"
 
+#ifdef SLICE_OP_CLUSTER_QUE
+lfrwq_t *slice_cluster_que[64] = {NULL};
+lfrwq_t *slice_cluster_watch_que[64] = {NULL};
+lfrwq_reader * que_reader[64] =  {NULL};
+lfrwq_reader *watch_que_reader[64] = {NULL};
+#endif
+
+
 
 struct task_struct *spt_thread_id[128] = {NULL};
 
@@ -75,6 +83,38 @@ char *tree_construct_data_from_key(char *pkey)
     return (char *)pdata;
 }
 
+#ifdef SLICE_OP_CLUSTER_QUE
+
+static int splitter_process_thread(void *data)
+{
+	int cpu = smp_processor_id();
+	int thread_idx = cpu/2;
+	lfrwq_reader *watch_reader = watch_que_reader[thread_idx];
+	lfrwq_reader *reader =  que_reader[thread_idx];
+	lfrwq_reader *deamon_reader = &per_cpu(int_slice_deamon_que_reader,cpu);
+	int ret = 0;
+	int w_ret = 0;
+	int d_ret = 0;
+	printk("spt thread run\r\n");
+	__set_current_state(TASK_RUNNING);
+	do
+	{
+		ret = process_state_que(slice_cluster_que[thread_idx],reader,1);
+		w_ret = process_state_que(slice_cluster_watch_que[thread_idx],watch_reader,2);
+		
+		d_ret = process_state_que(slice_deamon_que,deamon_reader,3);
+
+		if((w_ret != -2) && (ret!= -2)&&(d_ret !=-2))
+		{
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+		}
+
+	}while(!kthread_should_stop());
+
+	return 0;
+}
+#else
 static int splitter_process_thread(void *data)
 {
 	int cpu = smp_processor_id();
@@ -119,6 +159,8 @@ static int splitter_process_thread(void *data)
 	return 0;
 
 }
+#endif
+
 
 void splitter_thread_wakeup(void)
 {
@@ -135,10 +177,15 @@ void splitter_thread_wakeup(void)
 	}
 }
 
+
+int pone_thread_num = 0;
+
+
 int pone_case_init(void)
 {
 	int thread_num = 0;
 	int cpu = 0;
+	int i = 0;
 	set_data_size(PAGE_SIZE);
 	
 	thread_num = num_online_cpus()+1;
@@ -164,9 +211,48 @@ int pone_case_init(void)
         spt_debug("spt_thread_init err\r\n");
         return 1;
 	}
+	
+	pone_thread_num = 12;
+	#ifdef SLICE_OP_CLUSTER_QUE
+		for(i = 0 ; i < pone_thread_num;i++)
+		{
+			slice_cluster_que[i] = lfrwq_init(8192*2,512,2);
+			slice_cluster_watch_que[i] = lfrwq_init(8192*2,512,2);
+
+			if((NULL == slice_cluster_que[i])|| (NULL == slice_cluster_watch_que[i]))
+			{
+				printk("init que err\r\n");
+				return -1;
+			}
+			que_reader[i] = kmalloc(sizeof(lfrwq_reader),GFP_KERNEL);
+			if(NULL == que_reader[i])
+			{
+				printk("alloc que reader err\r\n");
+				return -1;
+			}
+			
+			memset(que_reader[i],0,sizeof(lfrwq_reader));
+			que_reader[i]->local_idx = -1;
+			watch_que_reader[i] = kmalloc(sizeof(lfrwq_reader),GFP_KERNEL);
+			if(NULL == watch_que_reader[i])
+			{
+				printk("alloc watch que reader err \r\n");
+				return -1;
+			}
+			
+			memset(watch_que_reader[i],0,sizeof(lfrwq_reader));
+			watch_que_reader[i]->local_idx = -1;
+
+		}
+
+	#endif
 	for_each_online_cpu(cpu)
 	{
 		if(cpu%2)
+		{
+			continue;
+		}
+		if(cpu >22)
 		{
 			continue;
 		}
@@ -182,8 +268,8 @@ int pone_case_init(void)
 			kthread_bind(spt_thread_id[cpu],cpu);
 			wake_up_process(spt_thread_id[cpu]);
 		}
-	
 	}
+
 	return 0;
 }
 unsigned long long insert_sd_tree_ok =0;
@@ -231,5 +317,43 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		}
 	}
 	return ret;
-
 }
+
+
+
+#ifdef SLICE_OP_CLUSTER_QUE
+int lfrwq_in_cluster_que(void *data,unsigned long que_id)
+{
+	return lfrwq_inq(slice_cluster_que[que_id%pone_thread_num],data);
+}
+
+int lfrwq_in_cluster_watch_que(void *data,unsigned long que_id)
+{
+	return lfrwq_inq(slice_cluster_watch_que[que_id%pone_thread_num],data);
+}
+void splitter_wakeup_cluster(void)
+{
+	int i;
+	int ret = 0;
+	for(i = 0;i < pone_thread_num ; i++)
+	{
+		ret += lfrwq_set_r_max_idx(slice_cluster_que[i],lfrwq_get_w_idx(slice_cluster_que[i]));
+		ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
+		if(ret)
+		{
+			if(spt_thread_id[2*i]->state != TASK_RUNNING)
+			wake_up_process(spt_thread_id[2*i]);		
+		}
+		ret = 0;
+
+	}
+	ret = 0;
+
+	ret += lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
+	if(ret)
+	{
+		splitter_thread_wakeup();
+	}
+}
+
+#endif

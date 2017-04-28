@@ -2008,7 +2008,7 @@ static inline int wp_page_reuse(struct mm_struct *mm,
 	 */
 #ifdef CONFIG_PONE_MODULE
 	if(page)
-		process_slice_state(page_to_pfn(page),SLICE_CHANGE,page);	
+		process_slice_state(page_to_pfn(page),SLICE_CHANGE,page,-1);	
 #endif
 	if (page)
 		page_cpupid_xchg_last(page, (1 << LAST_CPUPID_SHIFT) - 1);
@@ -2179,7 +2179,7 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 	if(process_slice_check())
 	{
 		if(op_page&&page_copied)
-		process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page);
+		process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page,address>>22);
 		
 	}
 	#endif
@@ -2775,7 +2775,7 @@ unlock:
 	if(process_slice_check())
 	{
 		if(new) 
-			process_slice_state(page_to_pfn(page),SLICE_ALLOC,page);
+			process_slice_state(page_to_pfn(page),SLICE_ALLOC,page,address>>22);
 	}
 #endif
 	return 0;
