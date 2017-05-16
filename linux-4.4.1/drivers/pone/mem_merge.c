@@ -16,6 +16,7 @@
 #include <pone/slice_state_adpter.h>
 #include <pone/pone.h>
 #include "splitter_adp.h"
+#include "virt_release.h"
 
 MODULE_LICENSE("GPL");
 dev_t merge_dev;
@@ -209,6 +210,7 @@ static int __init merge_mem_init(void)
 		return -1;
 	}
 #endif
+	virt_mem_release_init();
 	slice_per_cpu_count_init();
 	slice_debug_area_init();
 	pone_case_init();

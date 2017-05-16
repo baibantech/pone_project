@@ -14,6 +14,7 @@
 #include "vector.h"
 #include "chunk.h"
 #include  "splitter_adp.h"
+#include "virt_release.h"
 lfrwq_t *slice_que = NULL;
 lfrwq_t *slice_watch_que = NULL;
 slice_state_control_block *global_block = NULL;
@@ -468,6 +469,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 		}
         case SLICE_OUT_QUE:
 		{
+			void *page_addr = NULL;
+
 			atomic64_add(1,(atomic64_t*)&slice_out_que_num);
 			do
 			{
@@ -485,15 +488,30 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					break;
 				}
 				else if(SLICE_ENQUE == cur_state){
-					
-#if 0
-					if(per_cpu(in_watch_que_cnt,smp_processor_id())++  > 100)
+					page_addr = kmap_atomic(org_slice);
+					if(0 == is_virt_page_release(page_addr))
 					{
-						per_cpu(in_watch_que_cnt,smp_processor_id()) = 0;
-						lfrwq_set_r_max_idx(slice_watch_que,lfrwq_get_w_idx(slice_watch_que));
-						splitter_thread_wakeup();
+						if(0 == process_virt_page_release(page_addr,org_slice))
+						{
+							kunmap(org_slice);
+							ret = 0;
+							break;
+						}
+						else
+						{
+							kunmap(org_slice);
+							if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+							{
+								ret = 0;
+								break;
+							}
+							else
+							{
+								continue;
+							}
+						}
 					}
-#endif
+					
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
@@ -696,7 +714,14 @@ int process_slice_check(void)
 	char *src = "test_case";
 	if(!is_pone_init())
 		return 0;
-#if 1
+
+	if(is_in_mem_pool(current->mm))
+	{
+		return 1;
+	}
+	return 0;
+
+#if 0
 	if(0 == strcmp(current->comm,src))
 	{	
 	#if 0		

@@ -1,0 +1,54 @@
+#ifndef __VIRT_RELEASE_H__
+#define __VIRT_RELEASE_H__
+/*************************************************************************
+	> File Name: virt_release.h
+	> Author: lijiyong
+	> Mail: lijiyong0303@163.com 
+	> Created Time: Wed 10 May 2017 03:17:12 AM EDT
+ ************************************************************************/
+
+#include <linux/kvm_host.h>
+#include <linux/kvm.h>
+#include <linux/mm.h>
+#include <linux/slab.h>
+#include <linux/pagemap.h>
+#include <linux/mmu_notifier.h>
+#include <linux/swap.h>
+#define MEM_POOL_MAX 32
+struct virt_mem_args
+{
+	struct mm_struct *mm;
+	struct vm_area_struct *vma;
+	struct task_struct *task;
+	struct kvm *kvm;
+};
+
+struct virt_mem_pool
+{
+	unsigned long long magic;
+	int  pool_id;
+	unsigned long long hva;
+	struct virt_mem_args args;
+	unsigned long long desc_max;
+	unsigned long long alloc_idx;
+	unsigned long long desc[0];
+};
+
+struct virt_release_mark
+{
+	char desc[64];
+	int pool_id;
+	unsigned long long alloc_id;
+};
+extern struct virt_mem_pool   *mem_pool_addr[MEM_POOL_MAX] ;
+
+extern int mem_pool_reg(unsigned long gpa,struct kvm *kvm,struct mm_struct *mm,struct task_struct *task);
+
+extern int is_virt_page_release(struct virt_release_mark *mark);
+
+extern int process_virt_page_release(void *page_mem,struct page *org_page);
+ 
+extern int virt_mem_release_init(void);
+
+extern int is_in_mem_pool(struct mm_struct *mm);
+#endif
