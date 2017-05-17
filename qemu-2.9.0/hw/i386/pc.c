@@ -150,6 +150,66 @@ static uint64_t ioportF0_read(void *opaque, hwaddr addr, unsigned size)
     return 0xffffffffffffffffULL;
 }
 
+static void *vshare_map(hwaddr phys, hwaddr len,
+                       bool is_write)
+{
+    MemoryRegionSection section = memory_region_find(get_system_memory(), phys, len);
+
+    if (!section.mr || int128_get64(section.size) < len) {
+        goto out;
+    }
+    if (is_write && section.readonly) {
+        goto out;
+    }
+    if (!memory_region_is_ram(section.mr)) {
+        goto out;
+    }
+
+    return memory_region_get_ram_ptr(section.mr) + section.offset_within_region;
+
+out:
+    memory_region_unref(section.mr);
+    return NULL;
+}
+
+static void ioportt_write(void *opaque, hwaddr addr, uint64_t data,
+                           unsigned size)
+{
+    hwaddr pa;
+    void *ptr;
+    int ret;
+    printf("\r\n@@@@@@@@@@@@@@@addr:%llx data:%llx, size:%d\r\n", addr,data,size);
+    
+    switch (addr) {
+    case 0:
+        pa = (hwaddr)data << 12;
+        ptr = vshare_map(pa, 4096, true);
+        if(ptr == NULL)
+            printf("map fail\r\n");
+        printf("qemu:%s\r\n", ptr);
+        ret = kvm_vm_ioctl(kvm_state, KVM_SET_SHARE_MEM_POOL, data);
+        
+        if (ret < 0) {
+            return -errno;
+        }
+
+        break;
+    default:
+        error_report("%s: unexpected address 0x%x value 0x%x",
+                     __func__, addr, data);
+        break;
+
+    }
+}
+
+static uint64_t ioportt_read(void *opaque, hwaddr addr, unsigned size)
+{
+    printf("\r\n================addr:%llx  size:%d\r\n", addr,size);
+
+    return 0xffffffffffffffffULL;
+}
+
+
 /* TSC handling */
 uint64_t cpu_get_tsc(CPUX86State *env)
 {
@@ -1524,6 +1584,13 @@ static const MemoryRegionOps ioportF0_io_ops = {
     },
 };
 
+static const MemoryRegionOps t_io_ops = {
+    .write = ioportt_write,
+    .read = ioportt_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+};
+
+
 void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
                           ISADevice **rtc_state,
                           bool create_fdctrl,
@@ -1541,6 +1608,7 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
     ISADevice *i8042, *port92, *vmmouse, *pit = NULL;
     MemoryRegion *ioport80_io = g_new(MemoryRegion, 1);
     MemoryRegion *ioportF0_io = g_new(MemoryRegion, 1);
+    MemoryRegion *t_io = g_new(MemoryRegion, 1);
 
     memory_region_init_io(ioport80_io, NULL, &ioport80_io_ops, NULL, "ioport80", 1);
     memory_region_add_subregion(isa_bus->address_space_io, 0x80, ioport80_io);
@@ -1548,6 +1616,9 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
     memory_region_init_io(ioportF0_io, NULL, &ioportF0_io_ops, NULL, "ioportF0", 1);
     memory_region_add_subregion(isa_bus->address_space_io, 0xf0, ioportF0_io);
 
+    memory_region_init_io(t_io, NULL, &t_io_ops, NULL, "t_io", 20);
+    memory_region_add_subregion(isa_bus->address_space_io, 0xb000, t_io);
+    printf("\r\n$$$$$$$$$$$$$$$$$$$$$$$\r\n");
     /*
      * Check if an HPET shall be created.
      *
