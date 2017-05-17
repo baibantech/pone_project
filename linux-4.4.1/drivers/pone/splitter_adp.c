@@ -88,7 +88,7 @@ char *tree_construct_data_from_key(char *pkey)
 static int splitter_process_thread(void *data)
 {
 	int cpu = smp_processor_id();
-	int thread_idx = cpu/2;
+	int thread_idx = 0;
 	lfrwq_reader *watch_reader = watch_que_reader[thread_idx];
 	lfrwq_reader *reader =  que_reader[thread_idx];
 	lfrwq_reader *deamon_reader = &per_cpu(int_slice_deamon_que_reader,cpu);
@@ -212,7 +212,7 @@ int pone_case_init(void)
         return 1;
 	}
 	
-	pone_thread_num = 12;
+	pone_thread_num = 1;
 	#ifdef SLICE_OP_CLUSTER_QUE
 		for(i = 0 ; i < pone_thread_num;i++)
 		{
@@ -248,11 +248,7 @@ int pone_case_init(void)
 	#endif
 	for_each_online_cpu(cpu)
 	{
-		if(cpu%2)
-		{
-			continue;
-		}
-		if(cpu >22)
+		if(cpu != 1)
 		{
 			continue;
 		}
@@ -341,8 +337,8 @@ void splitter_wakeup_cluster(void)
 		ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
 		if(ret)
 		{
-			if(spt_thread_id[2*i]->state != TASK_RUNNING)
-			wake_up_process(spt_thread_id[2*i]);		
+			if(spt_thread_id[1]->state != TASK_RUNNING)
+			wake_up_process(spt_thread_id[1]);		
 		}
 		ret = 0;
 

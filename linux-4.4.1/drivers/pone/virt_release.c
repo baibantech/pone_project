@@ -125,6 +125,21 @@ int is_in_mem_pool(struct mm_struct *mm)
 	}
 	return 0;
 }
+int delete_mm_in_pool(struct mm_struct *mm)
+{
+	int i =0;
+	for(i =0 ; i < MEM_POOL_MAX; i++)
+	{
+		if(mem_pool_addr[i]!=NULL)
+		{
+			if(mem_pool_addr[i]->args.mm == mm)
+			{
+				kfree(mem_pool_addr[i]);
+				mem_pool_addr[i] = NULL;
+			}
+		}
+	}
+}
 
 int is_virt_page_release(struct virt_release_mark *mark)
 {

@@ -46,6 +46,7 @@ int virt_release_dev_ioctl(struct file *filp,unsigned int cmd,unsigned long args
 		case VIRT_RELEASE_IOC_REG_MEM_POOL :
 			{
 				printk("virt release reg mem pool\r\n");
+				printk("args is 0x%lx\r\n",args);
 				mem_pool_reg(args,NULL,current->mm,current);	
 				
 				break;

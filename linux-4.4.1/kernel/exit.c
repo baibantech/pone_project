@@ -58,7 +58,9 @@
 #include <asm/unistd.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
-
+#ifdef CONFIG_PONE_MODULE
+extern int delete_mm_in_pool(struct mm_struct *mm);
+#endif
 static void exit_mm(struct task_struct *tsk);
 
 static void __unhash_process(struct task_struct *p, bool group_dead)
@@ -400,6 +402,9 @@ static void exit_mm(struct task_struct *tsk)
 	 * will increment ->nr_threads for each thread in the
 	 * group with ->mm != NULL.
 	 */
+#ifdef CONFIG_PONE_MODULE
+	delete_mm_in_pool(mm);
+#endif
 	down_read(&mm->mmap_sem);
 	core_state = mm->core_state;
 	if (core_state) {

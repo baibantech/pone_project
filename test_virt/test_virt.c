@@ -58,12 +58,13 @@ int main(int argc,char *argv[])
 	int fd;
 	int cmd; 
 	printf("test begin\r\n");
+#if 1
 	fd = open("/dev/virt_release_mem",O_RDWR);
 	if(fd <0)
 	{
 		printf("open virt release err\r\n");
 	}
-
+#endif
 	
 	control_addr = mmap(0 ,4096*2 ,PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE,-1,0);
 	
@@ -75,7 +76,7 @@ int main(int argc,char *argv[])
 	
 	ioctl(fd,VIRT_RELEASE_IOC_REG_MEM_POOL,control_addr);
 	control_pool = control_addr;
-	
+#if 1	
 	addr = mmap(0 ,4096*100 ,PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE,-1,0);
 	sleep(10);
 	printf("begin addr is %p\r\n",addr);
@@ -89,7 +90,7 @@ int main(int argc,char *argv[])
 
 	printf("test set end  \r\n");
 	mark_page_release(addr);
-		
+#endif		
 	sleep(10);
 
 	while(1)

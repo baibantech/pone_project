@@ -488,6 +488,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					break;
 				}
 				else if(SLICE_ENQUE == cur_state){
+#if 1
 					page_addr = kmap_atomic(org_slice);
 					if(0 == is_virt_page_release(page_addr))
 					{
@@ -511,7 +512,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							}
 						}
 					}
-					
+					kunmap(org_slice);
+#endif
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
@@ -714,13 +716,13 @@ int process_slice_check(void)
 	char *src = "test_case";
 	if(!is_pone_init())
 		return 0;
-
+#if 1
 	if(is_in_mem_pool(current->mm))
 	{
 		return 1;
 	}
 	return 0;
-
+#endif
 #if 0
 	if(0 == strcmp(current->comm,src))
 	{	
