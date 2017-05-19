@@ -16,7 +16,7 @@
 #include <pone/slice_state_adpter.h>
 #include <pone/pone.h>
 #include "splitter_adp.h"
-#include "virt_release.h"
+#include <pone/virt_release.h>
 
 MODULE_LICENSE("GPL");
 dev_t merge_dev;

@@ -95,7 +95,7 @@ static unsigned long long rdtsc()
 extern unsigned int __read_mostly cpu_khz;	/* TSC clocks / usec, not used here */
 
 extern unsigned int __read_mostly tsc_khz;
-
+extern int page_recycle_enable ;
 #if 1
 static int  __init mapdrv_init(void)
 {
@@ -106,6 +106,7 @@ static int  __init mapdrv_init(void)
     strcpy((char*)ptr,"hello world from guest !"); 
 
     iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
+    page_recycle_enable = 1;
     return 0;
 }
 #else
@@ -151,6 +152,8 @@ static int  __init mapdrv_init(void)
 static void __exit mapdrv_exit(void)
 {
   unsigned long virt_addr;
+  page_recycle_enable = 0;
+#if 0
   /* unreserve all pages */
  for (virt_addr=(unsigned long)vmalloc_area;virt_addr<(unsigned long)(&(vmalloc_area[MAPLEN/sizeof(int)]));virt_addr+=PAGE_SIZE)
   {
@@ -161,6 +164,7 @@ static void __exit mapdrv_exit(void)
     vfree(vmalloc_area);
  /* unregister the device */
   unregister_chrdev(major, "mapdrv");
+#endif
   return;
 
 }

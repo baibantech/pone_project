@@ -9,13 +9,18 @@
 #include <linux/highmem.h>
 #include <linux/rmap.h>
 #include <asm/tlbflush.h>
-#include "virt_release.h"
+#include <pone/virt_release.h>
 
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
 char* release_dsc = "page can release xxx";
 struct page *release_merge_page = NULL;
 
 EXPORT_SYMBOL(release_merge_page);
+
+int page_recycle_enable = 0;
+
+EXPORT_SYMBOL(page_recycle_enable);
+
 
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
 
