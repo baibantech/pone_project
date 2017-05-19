@@ -25,6 +25,7 @@
 //#include <asm/pgtable.h>
 //#include <asm/paravirt.h>
 
+#include <pone/virt_release.h>
 #ifdef CONFIG_PARAVIRT
 //#error yes
 #else
@@ -96,13 +97,23 @@ extern unsigned int __read_mostly cpu_khz;	/* TSC clocks / usec, not used here *
 
 extern unsigned int __read_mostly tsc_khz;
 extern int page_recycle_enable ;
+
+void init_mem_pool(void *addr,int len)
+{
+	struct virt_mem_pool *pool = addr;
+	memset(addr,0,len);
+	pool->magic= 0xABABABABABABABAB;
+	pool->pool_id = -1;
+	pool->desc_max = (len - sizeof(struct virt_mem_pool))/sizeof(unsigned long long);
+}
 #if 1
 static int  __init mapdrv_init(void)
 {
     void __iomem *ioaddr = ioport_map(0xb000,0);
     struct page *page = alloc_pages(GFP_KERNEL|__GFP_ZERO,5);
     char *ptr = (char *)page_address(page);
-    
+   
+    init_mem_pool(ptr,32*PAGE_SIZE); 
     strcpy((char*)ptr,"hello world from guest !"); 
 
     iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
