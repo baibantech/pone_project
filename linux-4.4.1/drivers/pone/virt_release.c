@@ -21,9 +21,87 @@ int page_recycle_enable = 0;
 
 EXPORT_SYMBOL(page_recycle_enable);
 
+struct virt_mem_pool *guest_mem_pool = NULL;
+
+EXPORT_SYMBOL(guest_mem_pool);
 
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
 
+int virt_mark_page_release(struct page *page)
+{
+	int pool_id ;
+	unsigned long long alloc_id;
+	unsigned long long state;
+	unsigned long long idx ;
+	struct virt_release_mark *mark ;
+	if(!guest_mem_pool)
+	{
+		return 0;
+	}
+	
+	pool_id = guest_mem_pool->pool_id;
+	alloc_id = atomic64_add_return(1,(atomic64_t*)&guest_mem_pool->alloc_idx)-1;
+	idx = alloc_id%guest_mem_pool->desc_max;
+	state = guest_mem_pool->desc[idx];
+	if(0 == state)
+	{
+		mark =kmap_atomic(page);
+		if(0 != atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],0,page_to_pfn(page)))
+		{
+			pool_id = -1;
+			idx = -1;
+			
+		}
+		strcpy(mark->desc,guest_mem_pool->mem_ind);
+		mark->pool_id = pool_id;
+		mark->alloc_id = idx;
+		kunmap(page);
+		return 0;
+	}
+	return -1;
+}
+
+int virt_mark_page_alloc(struct page *page)
+{
+	int pool_id ;
+	unsigned long long alloc_id;
+	unsigned long long state;
+	unsigned long long idx ;
+	struct virt_release_mark *mark ;
+	if(!guest_mem_pool)
+	{
+		return 0;
+	}
+
+	mark =kmap_atomic(page);
+
+	if(0 == strcmp(mark->desc,guest_mem_pool->mem_ind))
+	{
+		if(mark->pool_id == guest_mem_pool->pool_id)
+		{
+			if(mark->alloc_id < guest_mem_pool->desc_max)
+			{
+				idx = mark->alloc_id;
+				state = guest_mem_pool->desc[mark->alloc_id];
+				if(state == page_to_pfn(page))
+				{
+					if(state == atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],state,0))
+					{
+						kunmap(page);
+						return 0;
+					}
+				}
+			}
+		}
+	}
+		
+	while(mark->desc[0] != '0')
+	{
+
+	}
+	kunmap(page);
+	return -1;
+}
 
 int virt_mem_release_init(void)
 {
@@ -50,24 +128,41 @@ int virt_mem_release_init(void)
 	return -1;
 }
 
+void print_virt_mem_pool(struct virt_mem_pool *pool)
+{
+	printk("magic is 0x%llx\r\n",pool->magic);
+	printk("pool_id is %d\r\n",pool->pool_id);
+	printk("mem_ind  is %s\r\n",pool->mem_ind);
+	printk("hva is 0x%llx\r\n",pool->hva);
+	printk("args mm  is %p\r\n",pool->args.mm);
+	printk("args vma  is %p\r\n",pool->args.vma);
+	printk("args task  is %p\r\n",pool->args.task);
+	printk("args kvm  is %p\r\n",pool->args.kvm);
+	printk("desc_max is %llx\r\n",pool->desc_max);
+}
 
-int mem_pool_reg(unsigned long gpa,struct kvm *kvm,struct mm_struct *mm,struct task_struct *task)
+
+EXPORT_SYMBOL(print_virt_mem_pool);
+
+int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct task_struct *task)
 {
 	unsigned long hva = 0;
 	struct vm_area_struct *vma = NULL;
 	struct page *begin_page = NULL;
 	struct virt_mem_pool *pool = NULL;
 	int i = 0;
+	printk("gfn is %lx\r\n",gfn);
 
 	if(NULL == kvm)
 	{
-		hva = gpa;
+		hva = gfn;
 	}
 	else
 	{
-		hva = gfn_to_hva(kvm,gpa_to_gfn(gpa));
+		hva = gfn_to_hva(kvm,gfn);
 	}
 
+	printk("hva is %lx\r\n",hva);
 	vma = find_vma(mm,hva);
 
 	begin_page = follow_page(vma,hva,FOLL_TOUCH);
@@ -78,6 +173,7 @@ int mem_pool_reg(unsigned long gpa,struct kvm *kvm,struct mm_struct *mm,struct t
 	}
 	
 	pool =  (struct virt_mem_pool*)kmap(begin_page);
+	print_virt_mem_pool(pool);
 	if(pool->magic != 0xABABABABABABABABULL)
 	{
 		printk("virt mem error in line%d\r\n ",__LINE__);
@@ -100,11 +196,12 @@ int mem_pool_reg(unsigned long gpa,struct kvm *kvm,struct mm_struct *mm,struct t
 			continue;
 		}
 		pool->pool_id = i;
-
+		strcpy(pool->mem_ind,release_dsc);
 		mem_pool_addr[i] = kmalloc(sizeof(struct virt_mem_pool),GFP_KERNEL);
 		if(mem_pool_addr[i])
 		{
 			memcpy(mem_pool_addr[i],pool,sizeof(struct virt_mem_pool));
+			print_virt_mem_pool(pool);
 			return 0;
 		}
 		
@@ -118,6 +215,7 @@ EXPORT_SYMBOL(mem_pool_reg);
 int is_in_mem_pool(struct mm_struct *mm)
 {
 	int i =0;
+#if 0
 	for(i =0 ; i < MEM_POOL_MAX; i++)
 	{
 		if(mem_pool_addr[i]!=NULL)
@@ -128,6 +226,7 @@ int is_in_mem_pool(struct mm_struct *mm)
 			}
 		}
 	}
+#endif
 	return 0;
 }
 int delete_mm_in_pool(struct mm_struct *mm)
@@ -165,7 +264,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	struct page *page = NULL;
 	void *dsc_page = NULL;
 	unsigned long long *dsc = NULL;
-	unsigned long gpa = 0;
+	unsigned long gfn = 0;
 	unsigned long hva = 0;
 	struct page *release_page = NULL;
 	struct kvm *kvm = NULL;
@@ -253,14 +352,14 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	
 	
 	/*load desc ,convert gpa to hpa*/
-	gpa = *dsc;
+	gfn = *dsc;
 	if(kvm)
 	{
-		hva = gfn_to_hva(kvm ,gpa_to_gfn(gpa));
+		hva = gfn_to_hva(kvm ,gfn);
 	}
 	else
 	{
-		hva = gpa;
+		hva = gfn;
 	}
 	
 	vma = find_vma(mm,hva);	
@@ -305,7 +404,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 
 	if(release_page == org_page)
 	{
-		if(gpa == atomic64_cmpxchg((atomic64_t*)dsc,gpa,0))
+		if(gfn == atomic64_cmpxchg((atomic64_t*)dsc,gfn,0))
 		{
 			/*replace org page to zero page*/
 			

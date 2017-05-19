@@ -70,6 +70,7 @@
 #ifdef CONFIG_PONE_MODULE
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
+#include <pone/virt_release.h>
 #endif
 
 #include "internal.h"

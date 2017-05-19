@@ -27,6 +27,7 @@ struct virt_mem_pool
 {
 	unsigned long long magic;
 	int  pool_id;
+	char mem_ind[64];
 	unsigned long long hva;
 	struct virt_mem_args args;
 	unsigned long long desc_max;
@@ -42,7 +43,7 @@ struct virt_release_mark
 };
 extern struct virt_mem_pool   *mem_pool_addr[MEM_POOL_MAX] ;
 
-extern int mem_pool_reg(unsigned long gpa,struct kvm *kvm,struct mm_struct *mm,struct task_struct *task);
+extern int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct task_struct *task);
 
 extern int is_virt_page_release(struct virt_release_mark *mark);
 
@@ -51,4 +52,10 @@ extern int process_virt_page_release(void *page_mem,struct page *org_page);
 extern int virt_mem_release_init(void);
 
 extern int is_in_mem_pool(struct mm_struct *mm);
+
+extern int virt_mark_page_release(struct page *page);
+
+extern int virt_mark_page_alloc(struct page *page);
+
+extern void print_virt_mem_pool(struct virt_mem_pool *pool);
 #endif

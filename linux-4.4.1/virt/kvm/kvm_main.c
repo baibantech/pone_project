@@ -55,6 +55,9 @@
 #include <asm/ioctl.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
+#ifdef CONFIG_PONE_MODULE
+#include <pone/virt_release.h>
+#endif
 
 #include "coalesced_mmio.h"
 #include "async_pf.h"
@@ -2899,16 +2902,13 @@ out_free_irq_routing:
 		r = kvm_vm_ioctl_check_extension_generic(kvm, arg);
 		break;
     case KVM_SET_SHARE_MEM_POOL:{       
-        struct page *page=0;
-        void *ptr=0;
-        page = gfn_to_page(kvm, argp);
-        ptr = kmap(page);
-        printk("\r\nhost kernel:%p\r\n",arg);
-        printk("\r\nhost kernel:%s\r\n", ptr);
-        //printk("\r\nhost kernel,argp:%p\tpage:%p\tptr:%p\r\n", argp,page,ptr);
+        
+		#ifdef CONFIG_PONE_MODULE
+		mem_pool_reg(arg,kvm,current->mm,current);
+		#endif
+		printk("\r\nhost kernel:%p\r\n",arg);
         r = 0;
-        kunmap(page);
-        break;
+		break;
     }
 	default:
 		r = kvm_arch_vm_ioctl(filp, ioctl, arg);

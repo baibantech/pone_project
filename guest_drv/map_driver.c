@@ -97,7 +97,7 @@ extern unsigned int __read_mostly cpu_khz;	/* TSC clocks / usec, not used here *
 
 extern unsigned int __read_mostly tsc_khz;
 extern int page_recycle_enable ;
-
+extern struct virt_mem_pool *guest_mem_pool;
 void init_mem_pool(void *addr,int len)
 {
 	struct virt_mem_pool *pool = addr;
@@ -114,10 +114,15 @@ static int  __init mapdrv_init(void)
     char *ptr = (char *)page_address(page);
    
     init_mem_pool(ptr,32*PAGE_SIZE); 
-    strcpy((char*)ptr,"hello world from guest !"); 
-
+    print_virt_mem_pool(ptr);
+	//strcpy((char*)ptr,"hello world from guest !"); 
+	printk("gfn is %lx\r\n",page_to_pfn(page));
     iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
     page_recycle_enable = 1;
+	
+    print_virt_mem_pool(ptr);
+	guest_mem_pool = ptr;
+
     return 0;
 }
 #else
@@ -164,6 +169,7 @@ static void __exit mapdrv_exit(void)
 {
   unsigned long virt_addr;
   page_recycle_enable = 0;
+ guest_mem_pool = NULL;
 #if 0
   /* unreserve all pages */
  for (virt_addr=(unsigned long)vmalloc_area;virt_addr<(unsigned long)(&(vmalloc_area[MAPLEN/sizeof(int)]));virt_addr+=PAGE_SIZE)
