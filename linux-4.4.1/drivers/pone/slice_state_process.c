@@ -292,6 +292,7 @@ void pre_fix_slice_check(void *data)
 
 EXPORT_SYMBOL(pre_fix_slice_check);
 unsigned long long proc_deamon_cnt;
+unsigned long long virt_page_release_merge_ok = 0;
 int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long  que)
 {
     unsigned long long cur_state;
@@ -494,6 +495,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					{
 						if(0 == process_virt_page_release(page_addr,org_slice))
 						{
+							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
 							kunmap(org_slice);
 							ret = 0;
 							break;

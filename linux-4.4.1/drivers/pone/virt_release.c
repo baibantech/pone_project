@@ -26,7 +26,8 @@ struct virt_mem_pool *guest_mem_pool = NULL;
 EXPORT_SYMBOL(guest_mem_pool);
 
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
-
+unsigned long mark_release_count= 0;
+unsigned long mark_alloc_count = 0;
 int virt_mark_page_release(struct page *page)
 {
 	int pool_id ;
@@ -48,9 +49,13 @@ int virt_mark_page_release(struct page *page)
 		mark =kmap_atomic(page);
 		if(0 != atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],0,page_to_pfn(page)))
 		{
-			pool_id = -1;
-			idx = -1;
+			pool_id = MEM_POOL_MAX +1;
+			idx = guest_mem_pool->desc_max +1;
 			
+		}
+		else
+		{
+			atomic64_add(1,(atomic64_t*)&mark_release_count);
 		}
 		strcpy(mark->desc,guest_mem_pool->mem_ind);
 		mark->pool_id = pool_id;
@@ -90,15 +95,18 @@ int virt_mark_page_alloc(struct page *page)
 						kunmap(page);
 						return 0;
 					}
+					else
+					{
+						while(mark->desc[0] != '0')
+						{
+
+						}
+					}
 				}
 			}
 		}
 	}
 		
-	while(mark->desc[0] != '0')
-	{
-
-	}
 	kunmap(page);
 	return -1;
 }
@@ -290,12 +298,22 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 		printk("virt mem error in line%d\r\n ",__LINE__);
 		return -1;
 	}
+	if(NULL == mem_pool_addr[pool_id])
+	{
+		printk("virt mem error in line%d\r\n ",__LINE__);
+		return -1;
+	}
 	
 	pool_va = mem_pool_addr[pool_id]->hva;
 	vma = mem_pool_addr[pool_id]->args.vma;
 	mm = mem_pool_addr[pool_id]->args.mm;
 	kvm = mem_pool_addr[pool_id]->args.kvm;
-	alloc_id = alloc_id%mem_pool_addr[pool_id]->desc_max;
+	if(alloc_id > mem_pool_addr[pool_id]->desc_max)
+	{
+		printk("virt mem error in line%d\r\n ",__LINE__);
+		return -1;
+	}
+	
 	/*get desc page ,desc add*/
 	dsc_off = sizeof(struct virt_mem_pool)+alloc_id*sizeof(unsigned long long);
 	
