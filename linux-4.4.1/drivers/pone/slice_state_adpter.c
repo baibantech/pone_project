@@ -86,9 +86,19 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_null);
 			return -1;
 		}
-
+		
 		if (pte_write(*ptep) || pte_dirty(*ptep)) {
 			pte_t entry;
+	
+			unsigned long mmun_start;	/* For mmu_notifiers */
+			unsigned long mmun_end;		/* For mmu_notifiers */
+
+			mmun_start = addr;
+			mmun_end   = addr + PAGE_SIZE;
+			mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
+			
+			
+			
 			flush_cache_page(vma, addr, page_to_pfn(page));
 			entry = ptep_clear_flush(vma, addr, ptep);
 
@@ -97,12 +107,15 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
         
 			entry = pte_mkclean(pte_wrprotect(entry));
 			set_pte_at_notify(mm, addr, ptep, entry);
+			
+			mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
 		}
 		else
 		{
 			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_nw);
 			return -1;
 		}
+		
 		//printk("slice proc name %s\r\n",mm->owner->comm);	
 	}
 	else
@@ -244,6 +257,13 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 			return -1;
 		}     
     
+		unsigned long mmun_start;	/* For mmu_notifiers */
+		unsigned long mmun_end;		/* For mmu_notifiers */
+
+		mmun_start = addr;
+		mmun_end   = addr + PAGE_SIZE;
+		mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
+		
 		get_page(new_page);
 		page_add_anon_rmap(new_page, vma, addr);
 
@@ -256,6 +276,8 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 		if (!page_mapped(page))
 			try_to_free_swap(page);
 		put_page(page);
+
+		mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
 	}
 	else
 	{
