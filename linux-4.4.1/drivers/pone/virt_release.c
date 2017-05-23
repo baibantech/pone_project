@@ -39,11 +39,12 @@ int virt_mark_page_release(struct page *page)
 	{
 		return 0;
 	}
-	
+	printk("guset mem pool %p\r\n",guest_mem_pool);	
 	pool_id = guest_mem_pool->pool_id;
 	alloc_id = atomic64_add_return(1,(atomic64_t*)&guest_mem_pool->alloc_idx)-1;
 	idx = alloc_id%guest_mem_pool->desc_max;
 	state = guest_mem_pool->desc[idx];
+	printk("pool id %d  alloc_id %lld  state %lld\r\n",pool_id,alloc_id,state);
 	if(0 == state)
 	{
 		mark =kmap_atomic(page);
