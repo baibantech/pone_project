@@ -110,7 +110,8 @@ void init_mem_pool(void *addr,int len)
 static int  __init mapdrv_init(void)
 {
     void __iomem *ioaddr = ioport_map(0xb000,0);
-    struct page *page = alloc_pages(GFP_KERNEL|__GFP_ZERO,5);
+    struct page *page1 = NULL;
+	struct page *page = alloc_pages(GFP_KERNEL|__GFP_ZERO,5);
     char *ptr = (char *)page_address(page);
    
     init_mem_pool(ptr,32*PAGE_SIZE); 
@@ -122,6 +123,8 @@ static int  __init mapdrv_init(void)
 	
     print_virt_mem_pool(ptr);
 	guest_mem_pool = ptr;
+	page1 = alloc_pages(GFP_KERNEL,0);
+	virt_mark_page_release(page1);
 
     return 0;
 }

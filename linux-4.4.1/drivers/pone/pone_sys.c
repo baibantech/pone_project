@@ -353,8 +353,11 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 PONE_ATTR(pone_debug);
 
 extern int slice_debug_area_show(void);
+extern void print_host_virt_mem_pool(void);
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
-{	slice_debug_area_show();
+{	
+	slice_debug_area_show();
+	print_host_virt_mem_pool();	
 	debug_statistic(pgclst);
 	printk_debug_map_cnt();
 	return sprintf(buf,"check dmesg buffer");

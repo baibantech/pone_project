@@ -65,7 +65,7 @@ int virt_mark_page_release(struct page *page)
 	}
 	return -1;
 }
-
+EXPORT_SYMBOL(virt_mark_page_release);
 int virt_mark_page_alloc(struct page *page)
 {
 	int pool_id ;
@@ -110,7 +110,7 @@ int virt_mark_page_alloc(struct page *page)
 	kunmap(page);
 	return -1;
 }
-
+EXPORT_SYMBOL(virt_mark_page_alloc);
 int virt_mem_release_init(void)
 {
 	void *page_addr = NULL;
@@ -146,7 +146,24 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 	printk("args vma  is %p\r\n",pool->args.vma);
 	printk("args task  is %p\r\n",pool->args.task);
 	printk("args kvm  is %p\r\n",pool->args.kvm);
+	printk("alloc id is %llx\r\n",pool->alloc_idx);
 	printk("desc_max is %llx\r\n",pool->desc_max);
+}
+
+void print_host_virt_mem_pool(void)
+{
+	int i = 0;
+	printk("print host virt mem pool info\r\n");
+	for(i = 0; i < MEM_POOL_MAX; i++)
+	{
+		if(mem_pool_addr[i] != NULL)
+		{
+			print_virt_mem_pool(mem_pool_addr[i]);
+		}
+
+	}
+
+
 }
 
 
@@ -185,11 +202,13 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	if(pool->magic != 0xABABABABABABABABULL)
 	{
 		printk("virt mem error in line%d\r\n ",__LINE__);
+		kunmap(begin_page);
 		return -1;
 	}
 	if(pool->pool_id != -1)
 	{
 		printk("virt mem error in line%d\r\n ",__LINE__);
+		kunmap(begin_page);
 		return -1;
 	}
 	pool->args.mm = mm;
@@ -209,14 +228,17 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 		if(mem_pool_addr[i])
 		{
 			memcpy(mem_pool_addr[i],pool,sizeof(struct virt_mem_pool));
-			print_virt_mem_pool(pool);
+			print_virt_mem_pool(mem_pool_addr[i]);
+			kunmap(begin_page);
 			return 0;
 		}
 		
 		printk("virt mem error in line%d\r\n ",__LINE__);
+		kunmap(begin_page);
 		return -1;
 	}
 	printk("virt mem error in line%d\r\n ",__LINE__);
+	kunmap(begin_page);
 	return -1;
 }
 EXPORT_SYMBOL(mem_pool_reg);
@@ -240,6 +262,7 @@ int is_in_mem_pool(struct mm_struct *mm)
 int delete_mm_in_pool(struct mm_struct *mm)
 {
 	int i =0;
+#if 0
 	for(i =0 ; i < MEM_POOL_MAX; i++)
 	{
 		if(mem_pool_addr[i]!=NULL)
@@ -251,6 +274,7 @@ int delete_mm_in_pool(struct mm_struct *mm)
 			}
 		}
 	}
+#endif
 }
 
 int is_virt_page_release(struct virt_release_mark *mark)
