@@ -39,12 +39,12 @@ int virt_mark_page_release(struct page *page)
 	{
 		return 0;
 	}
-	printk("guset mem pool %p\r\n",guest_mem_pool);	
+	//printk("guset mem pool %p\r\n",guest_mem_pool);	
 	pool_id = guest_mem_pool->pool_id;
 	alloc_id = atomic64_add_return(1,(atomic64_t*)&guest_mem_pool->alloc_idx)-1;
 	idx = alloc_id%guest_mem_pool->desc_max;
 	state = guest_mem_pool->desc[idx];
-	printk("pool id %d  alloc_id %lld  state %lld\r\n",pool_id,alloc_id,state);
+	//printk("pool id %d  alloc_id %lld  state %lld\r\n",pool_id,alloc_id,state);
 	if(0 == state)
 	{
 		mark =kmap_atomic(page);
@@ -154,16 +154,28 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 void print_host_virt_mem_pool(void)
 {
 	int i = 0;
+	struct virt_mem_pool *pool;
 	printk("print host virt mem pool info\r\n");
 	for(i = 0; i < MEM_POOL_MAX; i++)
 	{
 		if(mem_pool_addr[i] != NULL)
 		{
-			print_virt_mem_pool(mem_pool_addr[i]);
+			unsigned long hva = mem_pool_addr[i]->hva;
+			struct vm_area_struct *vma = mem_pool_addr[i]->args.vma;
+			struct page *begin_page = follow_page(vma,hva,FOLL_TOUCH);
+
+			if(NULL == begin_page)
+			{
+				printk("get host mem pool page err\r\n");
+				return ;
+			}
+			
+			pool =  (struct virt_mem_pool*)kmap(begin_page);
+			print_virt_mem_pool(pool);
+			kunmap(begin_page);
 		}
 
 	}
-
 
 }
 

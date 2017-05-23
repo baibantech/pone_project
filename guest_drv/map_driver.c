@@ -123,8 +123,8 @@ static int  __init mapdrv_init(void)
 	
     print_virt_mem_pool(ptr);
 	guest_mem_pool = ptr;
-	page1 = alloc_pages(GFP_KERNEL,0);
-	virt_mark_page_release(page1);
+//	page1 = alloc_pages(GFP_KERNEL,0);
+//	virt_mark_page_release(page1);
 
     return 0;
 }
