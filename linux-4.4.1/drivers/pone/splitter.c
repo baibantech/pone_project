@@ -2750,7 +2750,8 @@ refind_forward:
                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
                     unmap_st[g_thrd_id].idx++;
                     unmap_cnt[g_thrd_id]++;
-                    
+					if(ret == SPT_OK)
+						return ret;
                     return cur_data;
                 }
                 
@@ -3029,6 +3030,8 @@ refind_forward:
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
                                     unmap_st[g_thrd_id].idx++;
                                     unmap_cnt[g_thrd_id]++;
+									if(ret == SPT_OK)
+										return ret;
                                     
                                     return cur_data;
                                 }
@@ -3430,6 +3433,8 @@ refind_forward:
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
                                 unmap_st[g_thrd_id].idx++;
                                 unmap_cnt[g_thrd_id]++;
+								if(ret == SPT_OK)
+									return ret;
                                 
                                 return cur_data;
                             }
