@@ -1863,6 +1863,11 @@ struct anon_vma *page_try_lock_anon_vma_read(struct page *page)
 		}
 		goto out;
 	}
+	else
+	{
+		put_anon_vma(anon_vma);
+		anon_vma = NULL;
+	}
 
 out:
 	rcu_read_unlock();

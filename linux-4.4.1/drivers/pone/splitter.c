@@ -32,9 +32,9 @@
 #include "vector.h"
 #include "chunk.h"
 
-DEFINE_PER_CPU(u32 ,local_thrd_id);
-DEFINE_PER_CPU(int, local_thrd_errno);
-
+//DEFINE_PER_CPU(u32 ,local_thrd_id);
+//DEFINE_PER_CPU(int, local_thrd_errno);
+unsigned int sd_thrd_errno[128] = {0};
 cluster_head_t *pgclst;
 spt_thrd_t *g_thrd_h;
 cluster_head_t *ptopclst;
@@ -66,11 +66,12 @@ int spt_get_errno(void)
 {
     return g_thrd_errno;
 }
-
+#if 0
 void spt_set_thrd_id(int val)
 {
 	g_thrd_id = val;
 }
+#endif
 int spt_get_thrd_id(void)
 {
 	return g_thrd_id;

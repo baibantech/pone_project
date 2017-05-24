@@ -360,7 +360,7 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	print_host_virt_mem_pool();	
 	debug_statistic(pgclst);
 	printk_debug_map_cnt();
-	return sprintf(buf,"check dmesg buffer");
+	return sprintf(buf,"check dmesg buffer11111");
 }
 
 

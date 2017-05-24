@@ -419,10 +419,12 @@ extern spt_thrd_t *g_thrd_h;
 extern spt_dbg_info g_dbg_info;
 int spt_get_errno(void);
 extern cluster_head_t *pgclst;
-
+extern unsigned int sd_thrd_errno[128];
 DECLARE_PER_CPU(u32,local_thrd_id);
 DECLARE_PER_CPU(int,local_thrd_errno);
 DECLARE_PER_CPU(int,process_enter_check);
-#define g_thrd_id     per_cpu(local_thrd_id,smp_processor_id())
-#define g_thrd_errno  per_cpu(local_thrd_errno,smp_processor_id())
+//#define g_thrd_id     per_cpu(local_thrd_id,smp_processor_id())
+//#define g_thrd_errno  per_cpu(local_thrd_errno,smp_processor_id())
+#define g_thrd_id     smp_processor_id()
+#define g_thrd_errno  sd_thrd_errno[smp_processor_id()]
 #endif

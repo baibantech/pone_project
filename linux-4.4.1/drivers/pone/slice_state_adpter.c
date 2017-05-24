@@ -419,11 +419,13 @@ void slice_per_cpu_count_init(void)
 		check  = &per_cpu(process_enter_check,cpu);
 		*check = 0;
 	}
+#if 0
 	for_each_online_cpu(cpu)
 	{
 		per_cpu(local_thrd_id,cpu) = cpu;
 		
 	}
+#endif
 	for_each_online_cpu(cpu)
 	{
 		per_cpu(in_que_cnt,cpu) = 0;

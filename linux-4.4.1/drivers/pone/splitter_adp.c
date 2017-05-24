@@ -273,10 +273,15 @@ char * insert_sd_tree(unsigned long slice_idx)
 {
 	struct page *page = pfn_to_page(slice_idx);
 	void *r_data = NULL;
+	int cpu = smp_processor_id();
 	if(page)
 	{
 		spt_thread_start(g_thrd_id);
 		r_data = insert_data(pgclst,(char*)page);
+		if(cpu != smp_processor_id())
+		{
+			printk("cpu error !!!!!!!!!!!!!!\r\n");
+		}
 		spt_thread_exit(g_thrd_id);
 		if(r_data !=NULL)
 		{
@@ -297,9 +302,12 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		preempt_disable();
 		spt_thread_start(g_thrd_id);
 		ret = delete_data(pgclst,page);
+		if(cpu != smp_processor_id())
+		{
+			printk("cpu error !!!!!!!!!!!!!!\r\n");
+		}
 		preempt_enable();
 		spt_thread_exit(g_thrd_id);
-		
 		if(ret < 0)
 		{
 			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);

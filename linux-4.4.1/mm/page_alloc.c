@@ -969,7 +969,11 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	kmemcheck_free_shadow(page, order);
 	kasan_free_pages(page, order);
 
+	if (PageAnon(page))
+		page->mapping = NULL;
+
 #ifdef CONFIG_PONE_MODULE
+	barrier();
 	for (i = 0; i < (1 << order); i++) {
 		if(0 != process_slice_state(page_to_pfn(page+i),SLICE_FREE,page+i,-1))  
 		{	
@@ -978,8 +982,6 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	}
 #endif
 
-	if (PageAnon(page))
-		page->mapping = NULL;
 	bad += free_pages_check(page);
 	for (i = 1; i < (1 << order); i++) {
 		if (compound)
