@@ -23,6 +23,32 @@ lfrwq_t *slice_cluster_watch_que[64] = {NULL};
 lfrwq_reader * que_reader[64] =  {NULL};
 lfrwq_reader *watch_que_reader[64] = {NULL};
 #endif
+DEFINE_SPINLOCK(sd_tree_lock);
+int *ljy_vmalloc_area = NULL;
+EXPORT_SYMBOL(ljy_vmalloc_area);
+#define op_code_off (sizeof(int))
+#define page_mem_off (4096*3)
+int  op_index = 0;
+
+void record_tree(struct page *page,char op)
+{
+	if(ljy_vmalloc_area != NULL)
+	{
+		char *begin_op = ljy_vmalloc_area+1;
+		char *begin_page = (char*)ljy_vmalloc_area + page_mem_off;
+		void *page_addr = kmap_atomic(page);
+
+		begin_op[op_index] = op;
+		memcpy(begin_page + op_index*4096,page_addr,4096);
+		kunmap_atomic(page_addr);
+		op_index++;
+		*ljy_vmalloc_area = op_index;
+	}
+	else
+	{
+		printk("err ljy_vmalloc_area NULL\r\n");
+	}
+}
 
 
 
@@ -38,6 +64,7 @@ struct page *get_page_ptr(char *pdata)
 char *tree_get_key_from_data(char *pdata)
 {
 	struct page *page = NULL;
+	void *page_addr = NULL;
 	atomic64_add(1,(atomic64_t*)&data_map_key_cnt);
 	if(NULL == pdata)
 	{
@@ -49,7 +76,23 @@ char *tree_get_key_from_data(char *pdata)
 		return NULL;
 	}
 
-	return kmap_atomic(page);
+	page_addr =  kmap_atomic(page);
+#if 0
+	if(page->page_mem != NULL)
+	{	
+		if(0 != memcmp(page->page_mem,page_addr,PAGE_SIZE))
+		{
+			printk("page mem change err\r\n");
+		}
+
+	}	
+	else
+	{
+		printk("page mem ptr is null\r\n");
+	}
+#endif
+	return page_addr;
+
 }
 void tree_free_key(char *key)
 {
@@ -66,6 +109,15 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
+			if(page->page_mem != NULL)
+			{
+				kfree(page->page_mem);
+				page->page_mem = NULL;
+			}
+			else
+			{
+				printk("page mem null \r\n");
+			}
 			put_page(page);
 		}
 	}
@@ -276,13 +328,17 @@ char * insert_sd_tree(unsigned long slice_idx)
 	int cpu = smp_processor_id();
 	if(page)
 	{
+		spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
+		record_tree(page,1);
 		r_data = insert_data(pgclst,(char*)page);
 		if(cpu != smp_processor_id())
 		{
 			printk("cpu error !!!!!!!!!!!!!!\r\n");
 		}
 		spt_thread_exit(g_thrd_id);
+		
+		spin_unlock(&sd_tree_lock);
 		if(r_data !=NULL)
 		{
 			atomic64_add(1,(atomic64_t*)&insert_sd_tree_ok);
@@ -291,16 +347,44 @@ char * insert_sd_tree(unsigned long slice_idx)
 	return r_data;
 }
 unsigned long long delete_sd_tree_ok =0;
+
+unsigned long long data_cmp_cnt = 0;
+unsigned long long data_cmp_err = 0;
+unsigned long long data_cmp_ptr_null = 0;
+void slice_data_cmp(void *data,unsigned int lineno)
+{
+	struct page *page = data;
+	void *page_addr = kmap_atomic(page);
+
+	if(page->page_mem != NULL)
+	{
+		atomic64_add(1,(atomic64_t*)&data_cmp_cnt);
+		if(0 != memcmp(page->page_mem,page_addr,PAGE_SIZE))
+		{
+			atomic64_add(1,(atomic64_t*)&data_cmp_err);
+			printk("page mem change err line no %d\r\n",lineno);
+		}
+	}
+	else
+	{
+		atomic64_add(1,(atomic64_t*)&data_cmp_ptr_null);
+		printk("page mem ptr is null line no %d\r\n",lineno);
+	}
+	kunmap_atomic(page_addr);
+}
+
 int delete_sd_tree(unsigned long slice_idx,int op)
 {
 	struct page *page = pfn_to_page(slice_idx);
 	int ret = -1;
 	int cpu = smp_processor_id();
-
+	void *page_addr = NULL;
 	if(page)
 	{
 		preempt_disable();
+		spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
+		record_tree(page,2);
 		ret = delete_data(pgclst,page);
 		if(cpu != smp_processor_id())
 		{
@@ -308,8 +392,12 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		}
 		preempt_enable();
 		spt_thread_exit(g_thrd_id);
+		spin_unlock(&sd_tree_lock);
 		if(ret < 0)
 		{
+#if 1
+			slice_data_cmp(page,__LINE__);
+#endif
 			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
 			printk("org_slice %p count %d,mapcount %d\r\n",page,atomic_read(&page->_count),atomic_read(&page->_mapcount));
 			printk("delete thread erro code is %d\r\n",spt_get_errno());

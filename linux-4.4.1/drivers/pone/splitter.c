@@ -31,7 +31,7 @@
 #include <linux/random.h>
 #include "vector.h"
 #include "chunk.h"
-
+extern void slice_data_cmp(void *page,unsigned int lineno);
 //DEFINE_PER_CPU(u32 ,local_thrd_id);
 //DEFINE_PER_CPU(int, local_thrd_errno);
 unsigned int sd_thrd_errno[128] = {0};
@@ -869,6 +869,8 @@ int do_insert_first_set(cluster_head_t *pclst, insert_info_t *pinsert, char *new
     }
 
 }
+void *page_insert = NULL;
+char  page_in_tree[4096] = {0};
 
 int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_data)
 {
@@ -942,7 +944,13 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         {
             spt_debug("@@@@@ bug\r\n");
             dbg_switch = 1;
-            debug_data_print(pinsert->pcur_data);
+            page_insert = new_data;
+			memcpy(page_in_tree,pinsert->pcur_data,4096);
+			spt_debug("pvec_a->pos:%d\r\n",pvec_a->pos);
+			spt_debug("cmp_pos:%d ,fs:%d, startbit :%d ,endbit :%d\r\n",pinsert->cmp_pos,pinsert->fs,pinsert->startbit,pinsert->endbit);
+
+				
+			debug_data_print(pinsert->pcur_data);
             while(1);
         }
     }
@@ -2817,7 +2825,12 @@ refind_forward:
                         st_insert_info.pcur_data = pcur_data;
                         st_insert_info.startbit = startbit;
                         st_insert_info.cmpres = cmpres;
-                        ret = do_insert_up_via_r(pclst, &st_insert_info, pdata);
+                        if(pclst->is_bottom)
+						{
+							slice_data_cmp(pdh->pdata,__LINE__);
+							slice_data_cmp(pdata,__LINE__);
+						}
+						ret = do_insert_up_via_r(pclst, &st_insert_info, pdata);
                         if(ret == SPT_DO_AGAIN)
                         {
                             goto refind_start;
@@ -5823,7 +5836,9 @@ int debug_statistic(cluster_head_t *pclst)
             //debug_vec_print(&st_vec_f, cur_vecid);
             if(pcur_data != NULL)//head->right为空时，pcur_data等于空
             {
-                #if 0
+				//slice_data_cmp(pcur_data);    
+			
+#if 0
                 if(memcmp(data, pcur_data, DATA_SIZE)!=0)
                 {
                     printf("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
@@ -5840,6 +5855,10 @@ int debug_statistic(cluster_head_t *pclst)
                     buf_vec_total += debug_thrd_vec_statistic(plower_clst);
                     lower_ref += debug_statistic(plower_clst);
                 }
+				else
+				{
+					slice_data_cmp(pcur_data,__LINE__);
+				}
             }
             
             if(spt_stack_empty(pstack))

@@ -578,6 +578,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
         
         case SLICE_OUT_WATCH_QUE:
 		{    
+			void *page_addr = NULL;
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -596,6 +597,19 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					{
 						continue;
 					}
+					#if 1
+					org_slice->page_mem = kmalloc(PAGE_SIZE,GFP_ATOMIC);
+					if(!org_slice->page_mem)
+					{
+						printk("kmalloc err\r\n");
+					}
+					else
+					{
+						page_addr = kmap_atomic(org_slice);
+						memcpy(org_slice->page_mem,page_addr,PAGE_SIZE);
+						kunmap_atomic(page_addr);
+					}
+#endif
 					result = insert_sd_tree(slice_idx);
 					if(NULL == result){
 						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));

@@ -34,6 +34,7 @@ extern unsigned long long make_slice_protect_err_null;
 extern unsigned long long make_slice_protect_err_nw;
 extern unsigned long long make_slice_protect_err_map;
 extern unsigned long long make_slice_protect_err_lock;
+extern unsigned long long make_slice_protect_err_mapcnt;
 extern unsigned long long rmap_get_anon_vma_err;
 extern unsigned long long rmap_lock_num_err;
 extern unsigned long long rmap_pte_null_err;
@@ -86,6 +87,13 @@ extern unsigned long long mark_release_count ;
 extern unsigned long long mark_alloc_count;
 extern unsigned long long virt_page_release_merge_ok;
 
+extern unsigned long long data_cmp_cnt;
+extern unsigned long long data_cmp_err;
+extern unsigned long long data_cmp_ptr_null;
+
+extern void* page_insert;
+extern char page_in_tree[];
+
 #if 0
 extern unsigned long long page_anon_num;
 extern unsigned long long page_read_fault_num;
@@ -100,6 +108,35 @@ extern int lfrwq_len(lfrwq_t *qh);
 #define PONE_ATTR_RO(_name) static struct kobj_attribute _name##_attr = __ATTR_RO(_name)
 
 #define PONE_ATTR(_name)  static struct kobj_attribute _name##_attr =	__ATTR(_name, 0644, _name##_show, _name##_store)
+
+void show_page_mem(unsigned char *ptr)
+{
+	int i = 0;
+	int j = 0;
+
+	for(i = 0 ;i < 128 ;i++)
+	{
+			
+		printk("\r\n");
+		for(j = 0;j < 32;j++)
+		{
+			printk("%02x ",*(ptr+i*32 +j));
+		}
+	}
+}
+
+void show_page_err_info(void)
+{
+	char *page = NULL;
+	show_page_mem(page_in_tree);
+	printk("-----------------------------------------------------------\r\n");
+	if(page_insert)
+	{
+		page = kmap_atomic(page_insert);
+		show_page_mem(page);
+		kunmap_atomic(page);
+	}
+}
 
 extern int pone_case_init(void);
 int pone_hash_table_show(char *buf)
@@ -232,6 +269,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice protect err nw cnt: %lld\r\n",make_slice_protect_err_nw);
 	len += sprintf(buf +len ,"slice protect err map cnt: %lld\r\n",make_slice_protect_err_map);
 	len += sprintf(buf +len ,"slice protect err lock cnt: %lld\r\n",make_slice_protect_err_lock);
+	len += sprintf(buf +len ,"slice protect err mapcnt cnt: %lld\r\n",make_slice_protect_err_mapcnt);
 	
 	len += sprintf(buf +len ,"rmap get anon vma  err  cnt: %lld\r\n",rmap_get_anon_vma_err);
 	len += sprintf(buf +len ,"rmap lock num err  cnt: %lld\r\n",rmap_lock_num_err);
@@ -291,6 +329,9 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"mark release count  : %d\r\n",mark_release_count);
 	len += sprintf(buf +len ,"mark alloc count : %d\r\n",mark_alloc_count);
 	len += sprintf(buf +len ,"virt page merge count : %d\r\n",virt_page_release_merge_ok);
+	len += sprintf(buf +len , "data cmp count : %d\r\n",data_cmp_cnt);
+	len += sprintf(buf +len ,"data cmp err count : %d\r\n",data_cmp_err);
+	len += sprintf(buf +len ,"data_cmp ptr null  count : %d\r\n",data_cmp_ptr_null);
 
 
 	len += slice_file_info_get(buf+len);
@@ -356,10 +397,11 @@ extern int slice_debug_area_show(void);
 extern void print_host_virt_mem_pool(void);
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {	
-	slice_debug_area_show();
+	//slice_debug_area_show();
 	print_host_virt_mem_pool();	
 	debug_statistic(pgclst);
 	printk_debug_map_cnt();
+	show_page_err_info();
 	return sprintf(buf,"check dmesg buffer11111");
 }
 
