@@ -71,6 +71,7 @@ unsigned long long make_slice_protect_err_nw = 0;
 unsigned long long make_slice_protect_err_map = 0;
 unsigned long long make_slice_protect_err_lock = 0;
 unsigned long long make_slice_protect_err_mapcnt = 0;
+extern int is_virt_mem_pool_page(struct mm_struct *mm ,unsigned long address);
 #if 1
 int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
@@ -83,6 +84,10 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 		struct mm_struct *mm = vma->vm_mm;
 
 		if(PageTransCompound(page))
+		{
+			return -1;
+		}
+		if(is_virt_mem_pool_page(mm,addr))
 		{
 			return -1;
 		}

@@ -28,6 +28,31 @@ EXPORT_SYMBOL(guest_mem_pool);
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
 unsigned long mark_release_count= 0;
 unsigned long mark_alloc_count = 0;
+int is_virt_mem_pool_page(struct mm_struct *mm, unsigned long address)
+{
+	int i = 0;
+	for(i = 0; i < MEM_POOL_MAX; i++)
+	{
+		if(mem_pool_addr[i] != NULL)
+		{
+			unsigned long hva = mem_pool_addr[i]->hva;
+			struct mm_struct *pool_mm = mem_pool_addr[i]->args.mm;
+			if(mm == pool_mm)
+			{
+				if(address >= hva)
+				{
+					if(address <= (hva+32*4096))
+					{
+						return 1;
+					}
+				}
+			}
+		}
+	}
+	return 0;
+
+}
+
 int virt_mark_page_release(struct page *page)
 {
 	int pool_id ;
