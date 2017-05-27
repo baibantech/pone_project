@@ -3300,7 +3300,7 @@ unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 #ifdef CONFIG_PONE_MODULE
 
 	for (i = 0; i < (1 << order); i++) {
-		//virt_mark_page_alloc(page+i);
+		virt_mark_page_alloc(page+i);
 	}
 
 #endif

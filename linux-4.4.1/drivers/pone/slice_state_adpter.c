@@ -71,6 +71,7 @@ unsigned long long make_slice_protect_err_nw = 0;
 unsigned long long make_slice_protect_err_map = 0;
 unsigned long long make_slice_protect_err_lock = 0;
 unsigned long long make_slice_protect_err_mapcnt = 0;
+#if 1
 int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
 {
@@ -80,7 +81,11 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
     if(PageAnon(page))
 	{
 		struct mm_struct *mm = vma->vm_mm;
- 
+
+		if(PageTransCompound(page))
+		{
+			return -1;
+		}
 		ptep =  __page_get_pte_address(page, mm, addr);
 		if (!ptep)
 		{
@@ -99,6 +104,7 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 			
 			if (page_mapcount(page)  + swapped != page_count(page)) {
 				set_pte_at(mm, addr, ptep, entry);
+				pte_unmap(ptep);
 				atomic64_add(1,(atomic64_t*)&make_slice_protect_err_mapcnt);
 				return -1;
 			}
@@ -108,10 +114,11 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
         
 			entry = pte_mkclean(pte_wrprotect(entry));
 			set_pte_at_notify(mm, addr, ptep, entry);
-			
+			pte_unmap(ptep);
 		}
 		else
 		{
+			pte_unmap(ptep);
 			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_nw);
 			return -1;
 		}
@@ -124,6 +131,82 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	}
 	return 0;
 }
+#else
+int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
+                    unsigned long address, void *arg)
+{
+	struct mm_struct *mm = vma->vm_mm;
+	unsigned long addr;
+	pte_t *ptep;
+	spinlock_t *ptl;
+	int swapped;
+	int err = -1;
+	unsigned long mmun_start;	/* For mmu_notifiers */
+	unsigned long mmun_end;		/* For mmu_notifiers */
+#if 0
+	addr = page_address_in_vma(page, vma);
+	if (addr == -EFAULT)
+		goto out;
+#endif
+	BUG_ON(PageTransCompound(page));
+	addr = address;
+	if(addr != address)
+	{
+		printk("error addr\r\n");
+		goto out ;
+	}
+
+	mmun_start = addr;
+	mmun_end   = addr + PAGE_SIZE;
+	mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
+
+	ptep = page_check_address(page, mm, addr, &ptl, 0);
+	if (!ptep)
+	{
+		
+		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_null);
+		goto out_mn;
+	}
+
+	if (pte_write(*ptep) || pte_dirty(*ptep)) {
+		pte_t entry;
+
+		swapped = PageSwapCache(page);
+		flush_cache_page(vma, addr, page_to_pfn(page));
+		/*
+		 * Ok this is tricky, when get_user_pages_fast() run it doesn't
+		 * take any lock, therefore the check that we are going to make
+		 * with the pagecount against the mapcount is racey and
+		 * O_DIRECT can happen right after the check.
+		 * So we clear the pte and flush the tlb before the check
+		 * this assure us that no O_DIRECT can happen after the check
+		 * or in the middle of the check.
+		 */
+		entry = ptep_clear_flush_notify(vma, addr, ptep);
+		/*
+		 * Check that no O_DIRECT or similar I/O is in progress on the
+		 * page
+		 */
+		if (page_mapcount(page) + swapped != page_count(page)) {
+			set_pte_at(mm, addr, ptep, entry);
+			goto out_unlock;
+		}
+		if (pte_dirty(entry))
+			set_page_dirty(page);
+		entry = pte_mkclean(pte_wrprotect(entry));
+		set_pte_at_notify(mm, addr, ptep, entry);
+	}
+	err = 0;
+
+out_unlock:
+	pte_unmap_unlock(ptep, ptl);
+out_mn:
+	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+out:
+	return err;
+}
+#endif
+
 int make_slice_wprotect(unsigned long slice_idx)
 {
     struct page *page = pfn_to_page(slice_idx);

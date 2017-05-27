@@ -5208,7 +5208,7 @@ int diff_identify(char *a, char *b,u64 start, u64 len, vec_cmpret_t *result)
                     }
                     else
                     {
-                        find_smallfs(bcstart, (lenbyte<<3) + bitend, 8, result);
+                        find_smallfs(acstart, (lenbyte<<3) + bitend, 8, result);
                     }
                 }
             }
@@ -5247,7 +5247,7 @@ int diff_identify(char *a, char *b,u64 start, u64 len, vec_cmpret_t *result)
                     }
                     else
                     {
-                        find_smallfs(bcstart, (lenbyte<<3) + bitend, 4, result);
+                        find_smallfs(acstart, (lenbyte<<3) + bitend, 4, result);
                     }
                 }
             }
@@ -5287,7 +5287,7 @@ int diff_identify(char *a, char *b,u64 start, u64 len, vec_cmpret_t *result)
                     }
                     else
                     {
-                        find_smallfs(bcstart, (lenbyte<<3) + bitend, 2, result);
+                        find_smallfs(acstart, (lenbyte<<3) + bitend, 2, result);
                     }
                 }
             }

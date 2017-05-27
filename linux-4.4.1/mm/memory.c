@@ -2774,9 +2774,12 @@ unlock:
 #if CONFIG_PONE_MODULE
 	if(process_slice_check())
 	{
-		if(new) 
+		if(vma->vm_flags &VM_MERGEABLE)
+		{
+			if(new) 
 			process_slice_state(page_to_pfn(page),SLICE_ALLOC,page,address>>22);
-	}
+		}
+		}
 #endif
 	return 0;
 release:

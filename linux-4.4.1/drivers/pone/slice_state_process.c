@@ -204,7 +204,7 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
 
         if(old_state != get_slice_state_by_unit(cur_state_unit,slice_id))
         {
-            printk("error slice state in slice alloc %lld\r\n",cur_state_unit);
+            //printk("error slice state in slice alloc %lld\r\n",cur_state_unit);
             return -1;
         }   
 
@@ -477,7 +477,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 			{
 				cur_state = get_slice_state(nid,slice_id);
 				
-				if(!slice_que_debug){
+				if(0){
 					ret = 0;
 					break;
 				}	
@@ -519,6 +519,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
+#if 1
 #ifdef SLICE_OP_CLUSTER_QUE
 							if(-1 ==  lfrwq_in_cluster_watch_que(data,smp_processor_id()/2))
 #else
@@ -533,6 +534,12 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 								ret = 0;
 								break;
 							}
+#else
+							atomic64_add(1,(atomic64_t*)&slice_in_watch_que_ok);
+							ret =0;
+							break;
+#endif
+						
 						}
 						else {
 							
@@ -597,7 +604,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					{
 						continue;
 					}
-					#if 1
+					#if 0
 					org_slice->page_mem = kmalloc(PAGE_SIZE,GFP_ATOMIC);
 					if(!org_slice->page_mem)
 					{

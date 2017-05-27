@@ -224,7 +224,7 @@ static int __init merge_mem_init(void)
 		printk("slice_state_control_init err \r\n");
 		return -1;
 	}
-	slice_merge_timer_init(25);
+	slice_merge_timer_init(50);
 	pone_sysfs_init();
 	printk("slice_control_init \r\n");
 }

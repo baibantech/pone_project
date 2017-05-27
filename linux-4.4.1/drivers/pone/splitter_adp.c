@@ -109,6 +109,7 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
+#if 0
 			if(page->page_mem != NULL)
 			{
 				kfree(page->page_mem);
@@ -118,6 +119,7 @@ void tree_free_data(char *pdata)
 			{
 				printk("page mem null \r\n");
 			}
+#endif
 			put_page(page);
 		}
 	}
@@ -328,9 +330,9 @@ char * insert_sd_tree(unsigned long slice_idx)
 	int cpu = smp_processor_id();
 	if(page)
 	{
-		spin_lock(&sd_tree_lock);
+		//spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
-		record_tree(page,1);
+		//record_tree(page,1);
 		r_data = insert_data(pgclst,(char*)page);
 		if(cpu != smp_processor_id())
 		{
@@ -338,7 +340,7 @@ char * insert_sd_tree(unsigned long slice_idx)
 		}
 		spt_thread_exit(g_thrd_id);
 		
-		spin_unlock(&sd_tree_lock);
+		//spin_unlock(&sd_tree_lock);
 		if(r_data !=NULL)
 		{
 			atomic64_add(1,(atomic64_t*)&insert_sd_tree_ok);
@@ -353,6 +355,7 @@ unsigned long long data_cmp_err = 0;
 unsigned long long data_cmp_ptr_null = 0;
 void slice_data_cmp(void *data,unsigned int lineno)
 {
+#if 0
 	struct page *page = data;
 	void *page_addr = kmap_atomic(page);
 
@@ -371,6 +374,7 @@ void slice_data_cmp(void *data,unsigned int lineno)
 		printk("page mem ptr is null line no %d\r\n",lineno);
 	}
 	kunmap_atomic(page_addr);
+#endif
 }
 
 int delete_sd_tree(unsigned long slice_idx,int op)
@@ -382,9 +386,9 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 	if(page)
 	{
 		preempt_disable();
-		spin_lock(&sd_tree_lock);
+		//spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
-		record_tree(page,2);
+		//record_tree(page,2);
 		ret = delete_data(pgclst,page);
 		if(cpu != smp_processor_id())
 		{
@@ -392,7 +396,7 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		}
 		preempt_enable();
 		spt_thread_exit(g_thrd_id);
-		spin_unlock(&sd_tree_lock);
+		//spin_unlock(&sd_tree_lock);
 		if(ret < 0)
 		{
 #if 1
