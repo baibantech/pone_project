@@ -87,7 +87,7 @@ int virt_mark_page_release(struct page *page)
 		strcpy(mark->desc,guest_mem_pool->mem_ind);
 		mark->pool_id = pool_id;
 		mark->alloc_id = idx;
-		kunmap(page);
+		kunmap(mark);
 
 		atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 		return 0;
@@ -124,7 +124,7 @@ int virt_mark_page_alloc(struct page *page)
 				{
 					if(state == atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],state,0))
 					{
-						kunmap(page);
+						kunmap(mark);
 						atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
 						return 0;
 					}
@@ -141,7 +141,7 @@ int virt_mark_page_alloc(struct page *page)
 	}
 		
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
-	kunmap(page);
+	kunmap(mark);
 	return -1;
 }
 EXPORT_SYMBOL(virt_mark_page_alloc);

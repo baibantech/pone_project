@@ -502,13 +502,20 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					page_addr = kmap_atomic(org_slice);
 					if(0 == is_virt_page_release(page_addr))
 					{
+#if 0
 						if(0 == process_virt_page_release(page_addr,org_slice))
 						{
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
 							kunmap(org_slice);
 							ret = 0;
 							break;
+
 						}
+#endif
+						atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
+							kunmap(org_slice);
+							ret = 0;
+							break;
 					}
 					
 					kunmap(org_slice);
