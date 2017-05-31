@@ -109,7 +109,7 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
-#if 0
+#if 1
 			if(page->page_mem != NULL)
 			{
 				kfree(page->page_mem);
@@ -355,7 +355,7 @@ unsigned long long data_cmp_err = 0;
 unsigned long long data_cmp_ptr_null = 0;
 void slice_data_cmp(void *data,unsigned int lineno)
 {
-#if 0
+#if 1
 	struct page *page = data;
 	void *page_addr = kmap_atomic(page);
 
@@ -405,7 +405,7 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
 			printk("org_slice %p count %d,mapcount %d\r\n",page,atomic_read(&page->_count),atomic_read(&page->_mapcount));
 			printk("delete thread erro code is %d\r\n",spt_get_errno());
-			dump_stack();
+			//dump_stack();
 		}
 		else
 		{

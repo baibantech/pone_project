@@ -32,6 +32,10 @@ struct virt_mem_pool
 	struct virt_mem_args args;
 	unsigned long long desc_max;
 	unsigned long long alloc_idx;
+	unsigned long long debug_r_begin;
+	unsigned long long debug_r_end;
+	unsigned long long debug_a_begin;
+	unsigned long long debug_a_end;
 	unsigned long long desc[0];
 };
 

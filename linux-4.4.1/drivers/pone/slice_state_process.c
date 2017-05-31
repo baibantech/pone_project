@@ -293,6 +293,7 @@ void pre_fix_slice_check(void *data)
 EXPORT_SYMBOL(pre_fix_slice_check);
 unsigned long long proc_deamon_cnt;
 unsigned long long virt_page_release_merge_ok = 0;
+unsigned long long slice_change_volatile_ok = 0;
 int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long  que)
 {
     unsigned long long cur_state;
@@ -342,6 +343,14 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					printk("slice state is %lld ,err in map slice alloc\r\n",cur_state);
 					break;
 				}
+
+				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_VOLATILE)) {
+					ret = 0;
+					atomic64_add(1,(atomic64_t*)&slice_change_volatile_ok);
+					break;
+				}
+
+#if 0
 				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE)) {
 					
 #ifdef SLICE_OP_CLUSTER_QUE
@@ -360,8 +369,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					break;
 				}
 
+#endif
 			}while(1);
-			
 			break;
 		}
         
@@ -500,22 +509,17 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							ret = 0;
 							break;
 						}
-						else
-						{
-							kunmap(org_slice);
-							if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
-							{
-								ret = 0;
-								break;
-							}
-							else
-							{
-								continue;
-							}
-						}
 					}
+					
 					kunmap(org_slice);
+					if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+					{
+						ret = 0;
+						break;
+					}
 #endif
+					
+#if 0
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
@@ -571,7 +575,9 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						
 						break;
 					}
+#endif
 				}
+
 				else
 				{
 					printk("slice_state is %lld err in out que\r\n",cur_state);
@@ -604,7 +610,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					{
 						continue;
 					}
-					#if 0
+					#if 1
 					org_slice->page_mem = kmalloc(PAGE_SIZE,GFP_ATOMIC);
 					if(!org_slice->page_mem)
 					{

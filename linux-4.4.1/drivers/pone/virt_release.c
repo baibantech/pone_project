@@ -64,6 +64,7 @@ int virt_mark_page_release(struct page *page)
 	{
 		return 0;
 	}
+	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_begin);
 	//printk("guset mem pool %p\r\n",guest_mem_pool);	
 	pool_id = guest_mem_pool->pool_id;
 	alloc_id = atomic64_add_return(1,(atomic64_t*)&guest_mem_pool->alloc_idx)-1;
@@ -87,8 +88,12 @@ int virt_mark_page_release(struct page *page)
 		mark->pool_id = pool_id;
 		mark->alloc_id = idx;
 		kunmap(page);
+
+		atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 		return 0;
 	}
+
+	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 	return -1;
 }
 EXPORT_SYMBOL(virt_mark_page_release);
@@ -104,6 +109,7 @@ int virt_mark_page_alloc(struct page *page)
 		return 0;
 	}
 
+	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_begin);
 	mark =kmap_atomic(page);
 
 	if(0 == strcmp(mark->desc,guest_mem_pool->mem_ind))
@@ -119,6 +125,7 @@ int virt_mark_page_alloc(struct page *page)
 					if(state == atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],state,0))
 					{
 						kunmap(page);
+						atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
 						return 0;
 					}
 					else
@@ -133,6 +140,7 @@ int virt_mark_page_alloc(struct page *page)
 		}
 	}
 		
+	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
 	kunmap(page);
 	return -1;
 }
@@ -174,6 +182,10 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 	printk("args kvm  is %p\r\n",pool->args.kvm);
 	printk("alloc id is %llx\r\n",pool->alloc_idx);
 	printk("desc_max is %llx\r\n",pool->desc_max);
+	printk("debug r begin is %lld",pool->debug_r_begin);
+	printk("debug r end is %lld",pool->debug_r_end);
+	printk("debug a begin is %lld",pool->debug_a_begin);
+	printk("debug a begin is %lld",pool->debug_a_end);
 }
 
 void print_host_virt_mem_pool(void)

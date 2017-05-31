@@ -25,6 +25,7 @@ extern unsigned long slice_watch_que_debug;
 extern unsigned long slice_que_debug;
 
 extern unsigned long long slice_alloc_num ;
+extern unsigned long long slice_change_volatile_ok ;
 extern unsigned long long slice_in_que_ok;
 extern unsigned long long slice_in_que_err;
 
@@ -260,6 +261,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	
 	len += sprintf(buf +len ,"slice alloc cnt: %lld\r\n",slice_alloc_num);
 	len += sprintf(buf +len ,"slice in que ok cnt: %lld\r\n",slice_in_que_ok);
+	len += sprintf(buf +len ,"slice change volatile ok cnt: %lld\r\n",slice_change_volatile_ok);
 	len += sprintf(buf +len ,"slice in que err cnt: %lld\r\n",slice_in_que_err);
 
 	len += sprintf(buf +len ,"slice out que cnt: %lld\r\n",slice_out_que_num);
@@ -401,7 +403,7 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	print_host_virt_mem_pool();	
 	debug_statistic(pgclst);
 	printk_debug_map_cnt();
-	show_page_err_info();
+	//show_page_err_info();
 	return sprintf(buf,"check dmesg buffer11111");
 }
 
