@@ -157,7 +157,7 @@ unsigned long long get_slice_state_by_id(unsigned long slice_idx)
 	unsigned long long slice_id = 0;
 	if(!is_pone_init())
 	{
-		return SLICE_IDLE;
+		return SLICE_NULL;
 	}
 	nid = slice_idx_to_node(slice_idx);
 	slice_id = slice_nr_in_node(nid,slice_idx);
@@ -387,7 +387,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					{
 						if(0 == change_slice_state(nid,slice_id,SLICE_IDLE,SLICE_NULL))
 						{
-							ret = -1;
+							ret = 0;
 							break;
 						}
 					}
@@ -397,7 +397,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						{
 							//printk("fix free slice is %p,mapcount is %d\r\n",org_slice,atomic_read(&org_slice->_mapcount));
 							atomic64_add(1,(atomic64_t*)&slice_fix_free_num);
-							ret = -1;
+							ret = 0;
 							break;
 						}
 
@@ -405,7 +405,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						if(0 == change_slice_state(nid,slice_id,SLICE_VOLATILE,SLICE_NULL))
 						{
 							atomic64_add(1,(atomic64_t*)&slice_volatile_free_num);
-							ret = -1;
+							ret = 0;
 							break;
 						}
 					}
