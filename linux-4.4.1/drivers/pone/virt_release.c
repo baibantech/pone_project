@@ -174,7 +174,34 @@ int virt_mem_release_init(void)
 	}
 	return -1;
 }
-
+void walk_guest_mem_pool(void)
+{
+	int i = 0;
+	void *page_addr = NULL;
+	if(NULL == guest_mem_pool)
+	{
+		return ;
+	}
+	
+	for(i = 0; i <guest_mem_pool->desc_max; i++)
+	{
+		unsigned long long gfn = guest_mem_pool->desc[i];
+		if(gfn !=0)
+		{
+			page_addr = kmap_atomic(pfn_to_page(gfn));
+			if(0 == strcmp(page_addr,guest_mem_pool->mem_ind))
+			{
+			
+			}
+			else
+			{
+				printk("page_addr mem is %d\r\n",*(int*)page_addr);
+			}
+			kunmap_atomic(page_addr);
+		}
+	}
+}
+ 
 void print_virt_mem_pool(struct virt_mem_pool *pool)
 {
 	printk("magic is 0x%llx\r\n",pool->magic);
