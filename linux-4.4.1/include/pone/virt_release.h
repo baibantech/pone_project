@@ -36,6 +36,13 @@ struct virt_mem_pool
 	unsigned long long debug_r_end;
 	unsigned long long debug_a_begin;
 	unsigned long long debug_a_end;
+	unsigned long long mark_release_ok;
+	unsigned long long mark_release_err_conflict;
+	unsigned long long mark_release_err_state;
+	unsigned long long mark_alloc_ok;
+	unsigned long long mark_alloc_err_conflict;
+	unsigned long long mark_alloc_err_state;
+
 	unsigned long long desc[0];
 };
 

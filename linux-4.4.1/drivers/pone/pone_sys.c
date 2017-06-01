@@ -84,9 +84,8 @@ extern unsigned long long delete_sd_tree_ok ;
 extern unsigned long long insert_sd_tree_ok ;
 extern unsigned long long slice_pre_fix_check_cnt ;
 
-extern unsigned long long mark_release_count ;
-extern unsigned long long mark_alloc_count;
 extern unsigned long long virt_page_release_merge_ok;
+extern unsigned long long virt_page_release_merge_err;
 
 extern unsigned long long data_cmp_cnt;
 extern unsigned long long data_cmp_err;
@@ -328,9 +327,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	//len += sprintf(buf +len ,"que len: %d\r\n",lfrwq_len(slice_que));
 	//len += sprintf(buf +len ,"watch que len: %d\r\n",lfrwq_len(slice_watch_que));
 	len += sprintf(buf +len ,"deamon que len: %d\r\n",lfrwq_len(slice_deamon_que));
-	len += sprintf(buf +len ,"mark release count  : %d\r\n",mark_release_count);
-	len += sprintf(buf +len ,"mark alloc count : %d\r\n",mark_alloc_count);
 	len += sprintf(buf +len ,"virt page merge count : %d\r\n",virt_page_release_merge_ok);
+	len += sprintf(buf +len ,"virt page merge count err : %d\r\n",virt_page_release_merge_err);
 	len += sprintf(buf +len , "data cmp count : %d\r\n",data_cmp_cnt);
 	len += sprintf(buf +len ,"data cmp err count : %d\r\n",data_cmp_err);
 	len += sprintf(buf +len ,"data_cmp ptr null  count : %d\r\n",data_cmp_ptr_null);

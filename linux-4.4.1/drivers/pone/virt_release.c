@@ -78,11 +78,12 @@ int virt_mark_page_release(struct page *page)
 		{
 			pool_id = MEM_POOL_MAX +1;
 			idx = guest_mem_pool->desc_max +1;
+			atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_err_conflict);
 			
 		}
 		else
 		{
-			atomic64_add(1,(atomic64_t*)&mark_release_count);
+			atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_ok);
 		}
 		strcpy(mark->desc,guest_mem_pool->mem_ind);
 		mark->pool_id = pool_id;
@@ -92,7 +93,7 @@ int virt_mark_page_release(struct page *page)
 		atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 		return 0;
 	}
-
+	atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_err_state);
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 	return -1;
 }
@@ -125,11 +126,14 @@ int virt_mark_page_alloc(struct page *page)
 					if(state == atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],state,0))
 					{
 						kunmap_atomic(mark);
+						atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_ok);
 						atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
 						return 0;
 					}
 					else
 					{
+						
+						atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_conflict);
 						while(mark->desc[0] != '0')
 						{
 
@@ -140,6 +144,7 @@ int virt_mark_page_alloc(struct page *page)
 		}
 	}
 		
+	atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_state);
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
 	kunmap_atomic(mark);
 	return -1;
@@ -182,10 +187,16 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 	printk("args kvm  is %p\r\n",pool->args.kvm);
 	printk("alloc id is %llx\r\n",pool->alloc_idx);
 	printk("desc_max is %llx\r\n",pool->desc_max);
-	printk("debug r begin is %lld",pool->debug_r_begin);
-	printk("debug r end is %lld",pool->debug_r_end);
-	printk("debug a begin is %lld",pool->debug_a_begin);
-	printk("debug a begin is %lld",pool->debug_a_end);
+	printk("debug r begin is %lld\r\n",pool->debug_r_begin);
+	printk("debug r end is %lld\r\n",pool->debug_r_end);
+	printk("debug a begin is %lld\r\n",pool->debug_a_begin);
+	printk("debug a begin is %lld\r\n",pool->debug_a_end);
+	printk("mark release ok  is %lld\r\n",pool->mark_release_ok);
+	printk("mark release err conflict  is %lld\r\n",pool->mark_release_err_conflict);
+	printk("mark release err state  is %lld\r\n",pool->mark_release_err_state);
+	printk("mark alloc ok  is %lld\r\n",pool->mark_alloc_ok);
+	printk("mark alloc err conflict  is %lld\r\n",pool->mark_alloc_err_conflict);
+	printk("mark alloc err state  is %lld\r\n",pool->mark_alloc_err_state);
 }
 
 void print_host_virt_mem_pool(void)

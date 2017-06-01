@@ -293,6 +293,7 @@ void pre_fix_slice_check(void *data)
 EXPORT_SYMBOL(pre_fix_slice_check);
 unsigned long long proc_deamon_cnt;
 unsigned long long virt_page_release_merge_ok = 0;
+unsigned long long virt_page_release_merge_err = 0;
 unsigned long long slice_change_volatile_ok = 0;
 int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long  que)
 {
@@ -510,6 +511,10 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							ret = 0;
 							break;
 
+						}
+						else
+						{
+							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_err);
 						}
 #else
 						atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
