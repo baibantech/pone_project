@@ -3273,6 +3273,16 @@ out:
 	 */
 	if (unlikely(!page && read_mems_allowed_retry(cpuset_mems_cookie)))
 		goto retry_cpuset;
+#ifdef CONFIG_PONE_MODULE
+	if(page)
+	{
+		int i ;
+		for(i = 0;  i<(1 << order); i++)
+		{
+			virt_mark_page_alloc(page + i);
+		}
+	}
+#endif
 
 	return page;
 }
@@ -3284,10 +3294,6 @@ EXPORT_SYMBOL(__alloc_pages_nodemask);
 unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 {
 	struct page *page;
-
-#ifdef CONFIG_PONE_MODULE
-	int i = 0;
-#endif
 	/*
 	 * __get_free_pages() returns a 32-bit address, which cannot represent
 	 * a highmem page
@@ -3297,13 +3303,6 @@ unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
 	page = alloc_pages(gfp_mask, order);
 	if (!page)
 		return 0;
-#ifdef CONFIG_PONE_MODULE
-
-	for (i = 0; i < (1 << order); i++) {
-		virt_mark_page_alloc(page+i);
-	}
-
-#endif
 	return (unsigned long) page_address(page);
 }
 EXPORT_SYMBOL(__get_free_pages);

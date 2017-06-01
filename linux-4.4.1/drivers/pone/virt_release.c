@@ -10,7 +10,7 @@
 #include <linux/rmap.h>
 #include <asm/tlbflush.h>
 #include <pone/virt_release.h>
-
+extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
 char* release_dsc = "page can release xxx";
 struct page *release_merge_page = NULL;
@@ -226,6 +226,7 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 	printk("mark alloc err state  is %lld\r\n",pool->mark_alloc_err_state);
 }
 
+int walk_virt_page_release(struct virt_mem_pool *pool);
 void print_host_virt_mem_pool(void)
 {
 	int i = 0;
@@ -247,6 +248,7 @@ void print_host_virt_mem_pool(void)
 			
 			pool =  (struct virt_mem_pool*)kmap(begin_page);
 			print_virt_mem_pool(pool);
+			walk_virt_page_release(pool);
 			kunmap(begin_page);
 		}
 
@@ -568,5 +570,163 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	up_read(&mm->mmap_sem);
 	return -1;
 }
+
+int walk_virt_page_release(struct virt_mem_pool *pool)
+{
+	unsigned long long alloc_id = 0;
+	unsigned long pool_va = 0;
+	struct mm_struct *mm = NULL;
+	struct vm_area_struct *vma = NULL;
+
+	unsigned long dsc_page_addr = 0;
+	unsigned long dsc_off = 0;
+	unsigned long dsc_page_off = 0;
+	struct page *page = NULL;
+	void *dsc_page = NULL;
+	unsigned long long *dsc = NULL;
+	unsigned long gfn = 0;
+	unsigned long hva = 0;
+	struct page *release_page = NULL;
+	struct kvm *kvm = NULL;
+
+	pmd_t *dsc_pmd;
+	pte_t *dsc_ptep;
+	spinlock_t *dsc_ptl;
+	pte_t dsc_pte;
+	
+	pmd_t *r_pmd;
+	pte_t *r_ptep;
+	spinlock_t *r_ptl;
+	pte_t r_pte;
+	
+	if(pool->pool_id > MEM_POOL_MAX)
+	{
+		printk("virt mem error in line%d\r\n ",__LINE__);
+		return -1;
+	}
+	
+	pool_va = pool->hva;
+	vma = pool->args.vma;
+	mm = pool->args.mm;
+	kvm = pool->args.kvm;
+	for(alloc_id = 0 ; alloc_id < pool->desc_max;alloc_id++)	
+	{
+		/*get desc page ,desc add*/
+		dsc_off = sizeof(struct virt_mem_pool)+alloc_id*sizeof(unsigned long long);
+	
+		dsc_page_addr = (pool_va + dsc_off)&PAGE_MASK;
+		dsc_page_off = pool_va +dsc_off - dsc_page_addr;
+	
+		if(!down_read_trylock(&mm->mmap_sem))
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			return -1;
+		}
+	
+	
+		dsc_pmd = mm_find_pmd(mm, dsc_page_addr);
+		if (!dsc_pmd)
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+
+		dsc_ptl = pte_lockptr(mm,dsc_pmd);
+		dsc_ptep = pte_offset_map(dsc_pmd,dsc_page_addr);
+		spin_lock(dsc_ptl);
+	
+		dsc_pte = *dsc_ptep;
+		if(!pte_present(dsc_pte))
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			pte_unmap_unlock(dsc_ptep,dsc_ptl);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+
+		if(!pte_write(dsc_pte))
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			pte_unmap_unlock(dsc_ptep,dsc_ptl);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+		page =  vm_normal_page(vma,dsc_page_addr,dsc_pte);
+		if(!page)
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			pte_unmap_unlock(dsc_ptep,dsc_ptl);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+	
+		dsc_page = kmap(page);
+		dsc = dsc_page+dsc_page_off;
+		pte_unmap_unlock(dsc_ptep,dsc_ptl);
+	
+	
+		/*load desc ,convert gpa to hpa*/
+		gfn = *dsc;
+		if(gfn == 0)
+		{
+			continue;
+		}
+		if(kvm)
+		{
+			hva = gfn_to_hva(kvm ,gfn);
+		}
+		else
+		{	
+			hva = gfn;
+		}
+	
+		vma = find_vma(mm,hva);	
+
+		r_pmd = mm_find_pmd(mm, hva);
+		if (!r_pmd)
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+
+		r_ptl = pte_lockptr(mm,r_pmd);
+		r_ptep = pte_offset_map(r_pmd,hva);
+		spin_lock(r_ptl);
+		r_pte = *r_ptep;
+	
+		if(!pte_present(r_pte))
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			pte_unmap_unlock(r_ptep,r_ptl);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+
+		if(!pte_write(r_pte))
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			pte_unmap_unlock(r_ptep,r_ptl);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+		release_page =  vm_normal_page(vma,hva,r_pte);
+		if(!release_page)
+		{
+			printk("virt mem error in line%d\r\n ",__LINE__);
+			pte_unmap_unlock(r_ptep,r_ptl);
+			up_read(&mm->mmap_sem);
+			return -1;
+		}
+		printk("walk virt mem slice state is %lld\r\n",get_slice_state_by_id(page_to_pfn(release_page)));
+		pte_unmap_unlock(r_ptep,r_ptl);
+		kunmap(page);
+		up_read(&mm->mmap_sem);
+	}
+	return 0;
+}
+
+
 
 
