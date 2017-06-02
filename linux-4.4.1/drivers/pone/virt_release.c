@@ -62,7 +62,7 @@ int virt_mark_page_release(struct page *page)
 	struct virt_release_mark *mark ;
 	if(!guest_mem_pool)
 	{
-		return 0;
+		return -1;
 	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_begin);
 	//printk("guset mem pool %p\r\n",guest_mem_pool);	
@@ -248,7 +248,7 @@ void print_host_virt_mem_pool(void)
 			
 			pool =  (struct virt_mem_pool*)kmap(begin_page);
 			print_virt_mem_pool(pool);
-			walk_virt_page_release(pool);
+			//walk_virt_page_release(pool);
 			kunmap(begin_page);
 		}
 
@@ -371,6 +371,12 @@ int is_virt_page_release(struct virt_release_mark *mark)
 {
 	return strcmp(mark->desc,release_dsc);
 }
+
+
+unsigned long long virt_mem_page_lock_err;
+unsigned long long virt_mem_page_count_err;
+unsigned long long virt_mem_page_state_conflict;
+
 int process_virt_page_release(void *page_mem,struct page *org_page)
 {
 	int pool_id = 0;
@@ -501,6 +507,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	{
 		printk("virt mem error in line%d\r\n ",__LINE__);
 		up_read(&mm->mmap_sem);
+		kunmap(page);
 		return -1;
 	}
 
@@ -514,55 +521,60 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 		printk("virt mem error in line%d\r\n ",__LINE__);
 		pte_unmap_unlock(r_ptep,r_ptl);
 		up_read(&mm->mmap_sem);
+		kunmap(page);
 		return -1;
 	}
 
-	if(!pte_write(r_pte))
-	{
-		printk("virt mem error in line%d\r\n ",__LINE__);
-		pte_unmap_unlock(r_ptep,r_ptl);
-		up_read(&mm->mmap_sem);
-		return -1;
-	}
 	release_page =  vm_normal_page(vma,hva,r_pte);
 	if(!release_page)
 	{
 		printk("virt mem error in line%d\r\n ",__LINE__);
 		pte_unmap_unlock(r_ptep,r_ptl);
 		up_read(&mm->mmap_sem);
+		kunmap(page);
 		return -1;
 	}
 	
-
 	if(release_page == org_page)
 	{
-		if(gfn == atomic64_cmpxchg((atomic64_t*)dsc,gfn,0))
-		{
-			/*replace org page to zero page*/
+			if(gfn == atomic64_cmpxchg((atomic64_t*)dsc,gfn,0))
+			{
+				/*replace org page to zero page*/
 			
-			unsigned long mmun_start;	/* For mmu_notifiers */
-			unsigned long mmun_end;		/* For mmu_notifiers */
+				unsigned long mmun_start;	/* For mmu_notifiers */
+				unsigned long mmun_end;		/* For mmu_notifiers */
+				pte_t entry;
 
-			mmun_start = hva;
-			mmun_end   = hva + PAGE_SIZE;
-			mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
-			get_page(release_merge_page);
-			page_add_anon_rmap(release_merge_page, vma, hva);
+				mmun_start = hva;
+				mmun_end   = hva + PAGE_SIZE;
+				mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
 
-			flush_cache_page(vma, release_page, pte_pfn(*r_ptep));
-			ptep_clear_flush_notify(vma, hva, r_ptep);
-			set_pte_at_notify(mm, hva, r_ptep, pte_wrprotect(mk_pte(release_merge_page, vma->vm_page_prot)));
+				flush_cache_page(vma, release_page, pte_pfn(*r_ptep));
+				entry = ptep_clear_flush_notify(vma, hva, r_ptep);
+				if(page_mapcount(page)!= page_count(page))
+				{
+					set_pte_at(mm,hva,r_ptep,entry);
+					atomic64_add(1,(atomic64_t*)&virt_mem_page_count_err);
+				}
+				else
+				{
+					get_page(release_merge_page);
+					page_add_anon_rmap(release_merge_page, vma, hva);
+					set_pte_at_notify(mm, hva, r_ptep, pte_wrprotect(mk_pte(release_merge_page, vma->vm_page_prot)));
 
-			page_remove_rmap(release_page);
-			put_page(release_page);
-
-			pte_unmap_unlock(r_ptep, r_ptl);
-			kunmap(page);
-			up_read(&mm->mmap_sem);
-			mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
-			return 0;
-		}
-
+					page_remove_rmap(release_page);
+					put_page(release_page);
+				}
+				pte_unmap_unlock(r_ptep, r_ptl);
+				kunmap(page);
+				up_read(&mm->mmap_sem);
+				mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+				return 0;
+			}
+			else
+			{
+				atomic64_add(1,(atomic64_t*)&virt_mem_page_state_conflict);
+			}
 	}
 	printk("virt mem error in line%d\r\n ",__LINE__);
 	pte_unmap_unlock(r_ptep,r_ptl);
@@ -670,6 +682,8 @@ int walk_virt_page_release(struct virt_mem_pool *pool)
 		gfn = *dsc;
 		if(gfn == 0)
 		{
+			up_read(&mm->mmap_sem);
+			kunmap(page);
 			continue;
 		}
 		if(kvm)
@@ -688,6 +702,7 @@ int walk_virt_page_release(struct virt_mem_pool *pool)
 		{
 			printk("virt mem error in line%d\r\n ",__LINE__);
 			up_read(&mm->mmap_sem);
+			kunmap(page);
 			return -1;
 		}
 
@@ -701,22 +716,17 @@ int walk_virt_page_release(struct virt_mem_pool *pool)
 			printk("virt mem error in line%d\r\n ",__LINE__);
 			pte_unmap_unlock(r_ptep,r_ptl);
 			up_read(&mm->mmap_sem);
+			kunmap(page);
 			return -1;
 		}
 
-		if(!pte_write(r_pte))
-		{
-			printk("virt mem error in line%d\r\n ",__LINE__);
-			pte_unmap_unlock(r_ptep,r_ptl);
-			up_read(&mm->mmap_sem);
-			return -1;
-		}
 		release_page =  vm_normal_page(vma,hva,r_pte);
 		if(!release_page)
 		{
 			printk("virt mem error in line%d\r\n ",__LINE__);
 			pte_unmap_unlock(r_ptep,r_ptl);
 			up_read(&mm->mmap_sem);
+			kunmap(page);
 			return -1;
 		}
 		printk("walk virt mem slice state is %lld\r\n",get_slice_state_by_id(page_to_pfn(release_page)));

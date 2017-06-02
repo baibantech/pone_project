@@ -87,6 +87,10 @@ extern unsigned long long slice_pre_fix_check_cnt ;
 extern unsigned long long virt_page_release_merge_ok;
 extern unsigned long long virt_page_release_merge_err;
 
+extern unsigned long long virt_mem_page_lock_err;
+extern unsigned long long virt_mem_page_count_err;
+extern unsigned long long virt_mem_page_state_conflict;
+
 extern unsigned long long data_cmp_cnt;
 extern unsigned long long data_cmp_err;
 extern unsigned long long data_cmp_ptr_null;
@@ -329,10 +333,16 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"deamon que len: %d\r\n",lfrwq_len(slice_deamon_que));
 	len += sprintf(buf +len ,"virt page merge count : %d\r\n",virt_page_release_merge_ok);
 	len += sprintf(buf +len ,"virt page merge count err : %d\r\n",virt_page_release_merge_err);
+	
+	len += sprintf(buf +len ,"virt page lock err : %d\r\n",virt_mem_page_lock_err);
+	len += sprintf(buf +len ,"virt page state  err : %d\r\n",virt_mem_page_state_conflict);
+	len += sprintf(buf +len ,"virt page count   err : %d\r\n",virt_mem_page_count_err);
+	
+#if 0
 	len += sprintf(buf +len , "data cmp count : %d\r\n",data_cmp_cnt);
 	len += sprintf(buf +len ,"data cmp err count : %d\r\n",data_cmp_err);
 	len += sprintf(buf +len ,"data_cmp ptr null  count : %d\r\n",data_cmp_ptr_null);
-
+#endif
 
 	len += slice_file_info_get(buf+len);
 	return len;

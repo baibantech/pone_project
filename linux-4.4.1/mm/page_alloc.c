@@ -961,7 +961,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 {
 	bool compound = PageCompound(page);
 	int i, bad = 0;
-
+	int ret = -1;
 	VM_BUG_ON_PAGE(PageTail(page), page);
 	VM_BUG_ON_PAGE(compound && compound_order(page) != order, page);
 
@@ -1005,7 +1005,15 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 #ifdef CONFIG_PONE_MODULE
 
 	for (i = 0; i < (1 << order); i++) {
-		virt_mark_page_release(page+i);
+		if(0 == virt_mark_page_release(page+i))
+		{
+			ret = 0;
+		}
+	}
+
+	if(ret == 0)
+	{
+		return false;
 	}
 #endif
 	return true;
