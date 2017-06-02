@@ -78,6 +78,7 @@ extern unsigned long long slice_file_chgref_num;
 #endif
 
 extern struct pone_hash_head *pone_hash_table;
+extern unsigned long long page_free_cnt;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
 extern unsigned long long delete_sd_tree_ok ;
@@ -332,6 +333,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len , "data cmp count : %d\r\n",data_cmp_cnt);
 	len += sprintf(buf +len ,"data cmp err count : %d\r\n",data_cmp_err);
 	len += sprintf(buf +len ,"data_cmp ptr null  count : %d\r\n",data_cmp_ptr_null);
+	len += sprintf(buf +len ,"tree page free  cnt: %lld\r\n",page_free_cnt);
 
 
 	len += slice_file_info_get(buf+len);

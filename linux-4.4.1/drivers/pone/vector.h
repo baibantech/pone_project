@@ -51,7 +51,7 @@
 
 #define spt_data_free_flag(x) ((x)->rsv&0x1)
 #define spt_set_data_free_flag(x,y) ((x)->rsv |= y)
-#define spt_set_data_not_free(x) ((x)->rsv|=0x1)
+#define spt_set_data_not_free(x) ((x)->rsv &= 0xfffe)
 
 
 #define SPT_SORT_ARRAY_SIZE (4096*8)

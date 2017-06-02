@@ -12,6 +12,7 @@
 #include <linux/rmap.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/highmem.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
 #include "vector.h"
@@ -100,6 +101,7 @@ void tree_free_key(char *key)
 	kunmap_atomic(key);
 	return;
 }
+unsigned long long page_free_cnt;
 
 void tree_free_data(char *pdata)
 {
@@ -121,6 +123,8 @@ void tree_free_data(char *pdata)
 			}
 #endif
 			put_page(page);
+            atomic64_add(1,(atomic64_t*)&page_free_cnt);
+
 		}
 	}
 	return;
