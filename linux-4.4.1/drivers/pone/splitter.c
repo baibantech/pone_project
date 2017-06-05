@@ -2182,12 +2182,12 @@ refind_forward:
                 if(cur_data >= 0 && cur_data < SPT_INVALID)
                 {
                     pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                    smp_mb();
                     pcur_data = pclst->get_key_in_tree( pdh->pdata);
                     
                     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
                     map_st[g_thrd_id].idx++;
                     map_cnt[g_thrd_id]++;
-                    smp_mb();
                 }
                 else if(cur_data == SPT_NULL)
                 {
@@ -2683,11 +2683,11 @@ refind_forward:
                 if(cur_data >= 0 && cur_data < SPT_INVALID)
                 {
                     pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                    smp_mb();
                     pcur_data = pclst->get_key_in_tree(pdh->pdata);
                     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
                     map_st[g_thrd_id].idx++;
                     map_cnt[g_thrd_id]++;
-                    smp_mb();
                 }
                 else if(cur_data == SPT_DO_AGAIN)
                 {
