@@ -344,13 +344,13 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					printk("slice state is %lld ,err in map slice alloc\r\n",cur_state);
 					break;
 				}
-
+#if 1
 				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_VOLATILE)) {
 					ret = 0;
 					atomic64_add(1,(atomic64_t*)&slice_change_volatile_ok);
 					break;
 				}
-
+#endif
 #if 0
 				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE)) {
 					

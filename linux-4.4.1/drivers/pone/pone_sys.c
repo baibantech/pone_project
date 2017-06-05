@@ -20,6 +20,7 @@
 #include "vector.h"
 #include "chunk.h"
 
+extern struct page *release_merge_page;
 extern unsigned long long process_que_num;
 extern unsigned long slice_watch_que_debug;
 extern unsigned long slice_que_debug;
@@ -416,6 +417,8 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	debug_statistic(pgclst);
 	printk_debug_map_cnt();
 	walk_guest_mem_pool();
+	if(release_merge_page)
+	printk("release page count %d\r\n",page_count(release_merge_page));
 	//show_page_err_info();
 	return sprintf(buf,"check dmesg buffer11111");
 }

@@ -96,8 +96,10 @@ static unsigned long long rdtsc()
 extern unsigned int __read_mostly cpu_khz;	/* TSC clocks / usec, not used here */
 
 extern unsigned int __read_mostly tsc_khz;
-extern int page_recycle_enable ;
 extern struct virt_mem_pool *guest_mem_pool;
+extern void *virt_mem_pool_begin;
+extern int virt_mem_pool_len;
+
 void init_mem_pool(void *addr,int len)
 {
 	struct virt_mem_pool *pool = addr;
@@ -111,20 +113,24 @@ static int  __init mapdrv_init(void)
 {
     void __iomem *ioaddr = ioport_map(0xb000,0);
     struct page *page1 = NULL;
+#if 0
 	struct page *page = alloc_pages(GFP_KERNEL|__GFP_ZERO,5);
     char *ptr = (char *)page_address(page);
-   
-    init_mem_pool(ptr,32*PAGE_SIZE); 
+#endif
+	char *ptr = virt_mem_pool_begin;
+	if(!ptr)
+	{
+		printk("reserved mem get err \r\n");
+	}
+
+    init_mem_pool(ptr,virt_mem_pool_len); 
     print_virt_mem_pool(ptr);
 	//strcpy((char*)ptr,"hello world from guest !"); 
-	printk("gfn is %lx\r\n",page_to_pfn(page));
+	//printk("gfn is %lx\r\n",page_to_pfn(page));
     iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
-    page_recycle_enable = 1;
 	
     print_virt_mem_pool(ptr);
 	guest_mem_pool = ptr;
-//	page1 = alloc_pages(GFP_KERNEL,0);
-//	virt_mark_page_release(page1);
 
     return 0;
 }
@@ -171,7 +177,6 @@ static int  __init mapdrv_init(void)
 static void __exit mapdrv_exit(void)
 {
   unsigned long virt_addr;
-  page_recycle_enable = 0;
  guest_mem_pool = NULL;
 #if 0
   /* unreserve all pages */

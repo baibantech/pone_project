@@ -3967,7 +3967,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     cluster_head_t *pclst, *plower_clst;
     spt_dh_ext *pdh_ext;
     int i;
-    pclst = cluster_init(0, startbit, 1000, thread_num, pf, pf2, free_data, 
+    pclst = cluster_init(0, startbit, 4096, thread_num, pf, pf2, free_data, 
                             spt_upper_construct_data);
     if(pclst == NULL)
         return NULL;
@@ -3994,7 +3994,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
 
     
-    for(i=0;i<999;i++)
+    for(i=0;i< 0;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);

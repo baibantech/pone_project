@@ -150,6 +150,13 @@ EXPORT_SYMBOL_GPL(static_key_initialized);
 unsigned int reset_devices;
 EXPORT_SYMBOL(reset_devices);
 
+#ifdef CONFIG_PONE_MODULE
+void *virt_mem_pool_begin = NULL;
+int  virt_mem_pool_len = 5000 * PAGE_SIZE;
+EXPORT_SYMBOL(virt_mem_pool_len);
+EXPORT_SYMBOL(virt_mem_pool_begin);
+#endif
+
 static int __init set_reset_devices(char *str)
 {
 	reset_devices = 1;
@@ -556,6 +563,15 @@ asmlinkage __visible void __init start_kernel(void)
 	vfs_caches_init_early();
 	sort_main_extable();
 	trap_init();
+
+	#ifdef CONFIG_PONE_MODULE
+	virt_mem_pool_begin = alloc_bootmem_pages(virt_mem_pool_len);
+	if(virt_mem_pool_begin)
+	{
+		printk("alloc reserve mem for virt pool mem ok \r\n");
+	}
+	#endif
+
 	mm_init();
 
 	/*

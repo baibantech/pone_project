@@ -334,7 +334,7 @@ char * insert_sd_tree(unsigned long slice_idx)
 	int cpu = smp_processor_id();
 	if(page)
 	{
-		//spin_lock(&sd_tree_lock);
+		spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
 		//record_tree(page,1);
 		r_data = insert_data(pgclst,(char*)page);
@@ -344,7 +344,7 @@ char * insert_sd_tree(unsigned long slice_idx)
 		}
 		spt_thread_exit(g_thrd_id);
 		
-		//spin_unlock(&sd_tree_lock);
+		spin_unlock(&sd_tree_lock);
 		if(r_data !=NULL)
 		{
 			atomic64_add(1,(atomic64_t*)&insert_sd_tree_ok);
@@ -390,7 +390,7 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 	if(page)
 	{
 		preempt_disable();
-		//spin_lock(&sd_tree_lock);
+		spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
 		//record_tree(page,2);
 		ret = delete_data(pgclst,page);
@@ -400,7 +400,7 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		}
 		preempt_enable();
 		spt_thread_exit(g_thrd_id);
-		//spin_unlock(&sd_tree_lock);
+		spin_unlock(&sd_tree_lock);
 		if(ret < 0)
 		{
 #if 1
