@@ -2009,6 +2009,22 @@ void printk_debug_map_cnt(void)
 
 	}
 }
+void printk_debug_map_cnt_id(int thread_id)
+{
+	int i = thread_id;
+	int j ;
+
+		printk("thread id %d,map cnt is %lld,umap_cnt %lld\r\n",i,map_cnt[i],unmap_cnt[i]);
+		for(j =0 ;j < map_st[i].idx; j++ )
+		{
+			printk("map line num is %d\r\n",map_st[i].line[j]);
+		}
+		for(j =0 ;j < unmap_st[i].idx; j++ )
+		{
+			printk("umap line num is %d\r\n",unmap_st[i].line[j]);
+		}
+
+}
 
 
 /*ret:1查询不到；0删除成功；-1错误*/

@@ -380,6 +380,7 @@ void slice_data_cmp(void *data,unsigned int lineno)
 	kunmap_atomic(page_addr);
 #endif
 }
+extern void printk_debug_map_cnt_id(int);
 
 int delete_sd_tree(unsigned long slice_idx,int op)
 {
@@ -387,6 +388,7 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 	int ret = -1;
 	int cpu = smp_processor_id();
 	void *page_addr = NULL;
+	int i = 0;
 	if(page)
 	{
 		preempt_disable();
@@ -398,12 +400,24 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		{
 			printk("cpu error !!!!!!!!!!!!!!\r\n");
 		}
-		preempt_enable();
 		spt_thread_exit(g_thrd_id);
 	//	spin_unlock(&sd_tree_lock);
 		if(ret < 0)
 		{
 #if 1
+			printk_debug_map_cnt_id(g_thrd_id);
+			page_addr = kmap_atomic(page);
+			printk("\r\n");
+			for(i = 0 ; i < 32 ;i++)
+			{
+				printk("%02x ",*((unsigned char*)page_addr +i));
+
+			}
+			printk("\r\n");
+
+			kunmap_atomic(page_addr);
+
+
 			slice_data_cmp(page,__LINE__);
 #endif
 			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
@@ -415,6 +429,8 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		{
 			atomic64_add(1,(atomic64_t*)&delete_sd_tree_ok);
 		}
+
+		preempt_enable();
 	}
 	return ret;
 }

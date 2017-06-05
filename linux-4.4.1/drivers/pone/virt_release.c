@@ -41,7 +41,7 @@ int is_virt_mem_pool_page(struct mm_struct *mm, unsigned long address)
 			{
 				if(address >= hva)
 				{
-					if(address <= (hva+32*4096))
+					if(address < (hva+5000*4096))
 					{
 						return 1;
 					}
