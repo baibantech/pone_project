@@ -38,7 +38,7 @@ unsigned int sd_thrd_errno[128] = {0};
 cluster_head_t *pgclst;
 spt_thrd_t *g_thrd_h;
 cluster_head_t *ptopclst;
-
+cluster_head_t *plow_clst;
 spt_dbg_info g_dbg_info = {0};
 #define DBG_DATA_NUM 10
 u64 g_data[DBG_DATA_NUM]={0xee,0xbe,0xba,0xb6,0xae,
@@ -3980,6 +3980,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
         return NULL;
     }
     
+	plow_clst = plower_clst;
     pdh_ext = kmalloc(sizeof(spt_dh_ext)+DATA_SIZE,GFP_ATOMIC);
     if(pdh_ext == NULL)
     {

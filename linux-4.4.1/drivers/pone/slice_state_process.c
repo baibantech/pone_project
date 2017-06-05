@@ -499,7 +499,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					break;
 				}
 				else if(SLICE_ENQUE == cur_state){
-#if 1
+#if 0
 					page_addr = kmap_atomic(org_slice);
 					if(0 == is_virt_page_release(page_addr))
 					{
@@ -532,7 +532,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					}
 #endif
 					
-#if 0
+#if 1
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){

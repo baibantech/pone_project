@@ -377,10 +377,12 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 }
 #endif
 extern void debug_mm_pte(void);
-
+extern cluster_head_t *plow_clst;
+extern int debug_cluster_travl(cluster_head_t *pclst);
 static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	debug_mm_pte();	
+	debug_mm_pte();
+	debug_cluster_travl(plow_clst);
 	return sprintf(buf,"%ld",pone_file_watch);
 
 }
