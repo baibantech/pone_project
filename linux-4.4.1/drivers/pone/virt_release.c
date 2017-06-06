@@ -204,14 +204,14 @@ int virt_mem_release_init(void)
 				mem_pool_addr[i] = NULL;
 			}
 
+#ifdef GUEST_KERNEL
+			virt_mem_guest_init();	
+#endif
 			return 0;
 		}
 
 	}
 	
-#ifdef GUEST_KERNEL
-	virt_mem_guest_init();	
-#endif
 	return -1;
 }
 void walk_guest_mem_pool(void)
