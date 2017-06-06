@@ -2045,6 +2045,7 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     spt_dh *pdh;
 //    spt_cb_get_key get_key;
     spt_cb_end_key finish_key_cb;
+    int i;
 
     if(map_cnt[g_thrd_id] != unmap_cnt[g_thrd_id])
     {
@@ -2889,6 +2890,24 @@ refind_forward:
                         }
                         break;
                     case SPT_OP_DELETE:
+
+spt_debug("=====================================================\r\n");
+spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
+            cmpres.pos, cmpres.smallfs, cur_vec.val);
+printk("data_in_tree:%p\r\n", pdh->pdata);
+for(i = 0 ; i < 32 ;i++)
+{
+    printk("%02x ",*((unsigned char*)pcur_data +i));
+
+}
+printk("data_insert:%p\r\n", pqinfo->data);
+for(i = 0 ; i < 32 ;i++)
+{
+    printk("%02x ",*((unsigned char*)prdata +i));
+
+}
+spt_debug("=====================================================\r\n");
+
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
@@ -2989,7 +3008,22 @@ refind_forward:
                         }
                         break;
                     case SPT_OP_DELETE:
+                        spt_debug("=====================================================\r\n");
+                        spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
+                                    cmpres.pos, cmpres.smallfs, cur_vec.val);
+                        printk("data_in_tree:%p\r\n", pdh->pdata);
+                        for(i = 0 ; i < 32 ;i++)
+                        {
+                            printk("%02x ",*((unsigned char*)pcur_data +i));
                         
+                        }
+                        printk("data_insert:%p\r\n", pqinfo->data);
+                        for(i = 0 ; i < 32 ;i++)
+                        {
+                            printk("%02x ",*((unsigned char*)prdata +i));
+                        
+                        }
+                        spt_debug("=====================================================\r\n");
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
                         unmap_st[g_thrd_id].idx++;
