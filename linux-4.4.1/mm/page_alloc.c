@@ -1032,16 +1032,29 @@ static void __init __free_pages_boot_core(struct page *page,
 	unsigned int nr_pages = 1 << order;
 	struct page *p = page;
 	unsigned int loop;
+#ifdef CONFIG_PONE_MODULE
+	void *page_addr = NULL;
+#endif
 
 	prefetchw(p);
 	for (loop = 0; loop < (nr_pages - 1); loop++, p++) {
 		prefetchw(p + 1);
 		__ClearPageReserved(p);
 		set_page_count(p, 0);
+#ifdef CONFIG_PONE_MODULE
+		page_addr = kmap(p);
+		memset(page_addr,0,4096);
+		kunmap(p);
+#endif
 	}
 	__ClearPageReserved(p);
 	set_page_count(p, 0);
 
+#ifdef CONFIG_PONE_MODULE
+	page_addr = kmap(p);
+	memset(page_addr,0,4096);
+	kunmap(p);
+#endif	
 	page_zone(page)->managed_pages += nr_pages;
 	set_page_refcounted(page);
 	__free_pages(page, order);
