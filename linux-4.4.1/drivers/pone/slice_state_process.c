@@ -631,7 +631,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					{
 						continue;
 					}
-					#if 1
+					#if 0
 					org_slice->page_mem = kmalloc(PAGE_SIZE,GFP_ATOMIC);
 					if(!org_slice->page_mem)
 					{

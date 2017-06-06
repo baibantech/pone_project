@@ -111,7 +111,7 @@ void tree_free_data(char *pdata)
 		page = get_page_ptr(pdata);
 		if(NULL  != page)
 		{	
-#if 1
+#if 0
 			if(page->page_mem != NULL)
 			{
 				kfree(page->page_mem);
@@ -359,7 +359,7 @@ unsigned long long data_cmp_err = 0;
 unsigned long long data_cmp_ptr_null = 0;
 void slice_data_cmp(void *data,unsigned int lineno)
 {
-#if 1
+#if 0
 	struct page *page = data;
 	void *page_addr = kmap_atomic(page);
 

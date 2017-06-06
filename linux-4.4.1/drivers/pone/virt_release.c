@@ -14,6 +14,9 @@ extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
 char* release_dsc = "page can release xxx";
 struct page *release_merge_page = NULL;
+extern void *virt_mem_pool_begin;
+extern int virt_mem_pool_len;
+
 
 EXPORT_SYMBOL(release_merge_page);
 
@@ -151,6 +154,38 @@ int virt_mark_page_alloc(struct page *page)
 	return -1;
 }
 EXPORT_SYMBOL(virt_mark_page_alloc);
+
+void init_guest_mem_pool(void *addr,int len)
+{
+	struct virt_mem_pool *pool = addr;
+	memset(addr,0,len);
+	pool->magic= 0xABABABABABABABAB;
+	pool->pool_id = -1;
+	pool->desc_max = (len - sizeof(struct virt_mem_pool))/sizeof(unsigned long long);
+}
+
+int virt_mem_guest_init(void)
+{
+    void __iomem *ioaddr = ioport_map(0xb000,0);
+    struct page *page1 = NULL;
+	
+	char *ptr = virt_mem_pool_begin;
+	if(!ptr)
+	{
+		printk("reserved mem get err \r\n");
+	}
+
+    init_guest_mem_pool(ptr,virt_mem_pool_len); 
+    print_virt_mem_pool(ptr);
+    iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
+    print_virt_mem_pool(ptr);
+	guest_mem_pool = ptr;
+
+    return 0;
+}
+
+
+
 int virt_mem_release_init(void)
 {
 	void *page_addr = NULL;
@@ -173,6 +208,10 @@ int virt_mem_release_init(void)
 		}
 
 	}
+	
+#ifdef GUEST_KERNEL
+	virt_mem_guest_init();	
+#endif
 	return -1;
 }
 void walk_guest_mem_pool(void)
