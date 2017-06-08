@@ -310,7 +310,7 @@ int get_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
     ref->ref_info = vma;
 
     if(NULL == head)
-    {
+   {
         *arg = &ref->next;
     }
     else
@@ -324,6 +324,18 @@ int get_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 }
 #endif
 
+static void add_mm_counter_fast(struct mm_struct *mm, int member, int val)
+{
+	struct task_struct *task = current;
+
+	if (likely(task->mm == mm))
+		task->rss_stat.count[member] += val;
+	else
+		add_mm_counter(mm, member, val);
+}
+#define inc_mm_counter_fast(mm, member) add_mm_counter_fast(mm, member, 1)
+
+#define dec_mm_counter_fast(mm, member) add_mm_counter_fast(mm, member, -1)
 extern unsigned long long slice_file_chgref_num;
 int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
@@ -357,6 +369,9 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
     
 		if (!page_mapped(page))
 			try_to_free_swap(page);
+		
+		//dec_mm_counter_fast(mm,MM_ANONPAGES);
+
 		put_page(page);
 
 	}

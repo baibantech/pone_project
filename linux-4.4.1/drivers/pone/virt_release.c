@@ -392,7 +392,7 @@ int is_in_mem_pool(struct mm_struct *mm)
 int delete_mm_in_pool(struct mm_struct *mm)
 {
 	int i =0;
-#if 1
+#if 0
 	for(i =0 ; i < MEM_POOL_MAX; i++)
 	{
 		if(mem_pool_addr[i]!=NULL)
@@ -460,7 +460,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	}
 	if(NULL == mem_pool_addr[pool_id])
 	{
-		printk("virt mem error in line%d\r\n ",__LINE__);
+		//printk("virt mem error in line%d\r\n ",__LINE__);
 		return -1;
 	}
 	
@@ -470,7 +470,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	kvm = mem_pool_addr[pool_id]->args.kvm;
 	if(alloc_id > mem_pool_addr[pool_id]->desc_max)
 	{
-		printk("virt mem error in line%d\r\n ",__LINE__);
+		//printk("virt mem error in line%d\r\n ",__LINE__);
 		return -1;
 	}
 	
@@ -601,9 +601,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 					get_page(release_merge_page);
 					page_add_anon_rmap(release_merge_page, vma, hva);
 					set_pte_at_notify(mm, hva, r_ptep, pte_wrprotect(mk_pte(release_merge_page, vma->vm_page_prot)));
-
 					page_remove_rmap(release_page);
-					put_page(release_page);
 				}
 				pte_unmap_unlock(r_ptep, r_ptl);
 				kunmap(page);

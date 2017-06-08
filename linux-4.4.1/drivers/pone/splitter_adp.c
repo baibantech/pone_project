@@ -146,7 +146,7 @@ char *tree_construct_data_from_key(char *pkey)
 static int splitter_process_thread(void *data)
 {
 	int cpu = smp_processor_id();
-	int thread_idx = 0;
+	long thread_idx = (long)data;
 	lfrwq_reader *watch_reader = watch_que_reader[thread_idx];
 	lfrwq_reader *reader =  que_reader[thread_idx];
 	lfrwq_reader *deamon_reader = &per_cpu(int_slice_deamon_que_reader,cpu);
@@ -237,13 +237,15 @@ void splitter_thread_wakeup(void)
 
 
 int pone_thread_num = 0;
-
+int pone_thread_interval = 2;
 
 int pone_case_init(void)
 {
 	int thread_num = 0;
 	int cpu = 0;
 	int i = 0;
+	int thrd_cnt = 0;
+	
 	set_data_size(PAGE_SIZE);
 	
 	thread_num = num_online_cpus()+1;
@@ -270,7 +272,7 @@ int pone_case_init(void)
         return 1;
 	}
 	
-	pone_thread_num = 1;
+	pone_thread_num = 5;
 	#ifdef SLICE_OP_CLUSTER_QUE
 		for(i = 0 ; i < pone_thread_num;i++)
 		{
@@ -306,11 +308,19 @@ int pone_case_init(void)
 	#endif
 	for_each_online_cpu(cpu)
 	{
-		if(cpu != 1)
+		if(cpu == 0)
 		{
 			continue;
 		}
-		spt_thread_id[cpu] = kthread_create(splitter_process_thread,cpu,"spthrd_%d",cpu);
+		if(((cpu-1) %pone_thread_interval) != 0 )
+		{
+			continue;
+		}
+		if(thrd_cnt >= pone_thread_num)
+		{
+			break;
+		}
+		spt_thread_id[cpu] = kthread_create(splitter_process_thread,thrd_cnt,"spthrd_%d",cpu);
 		if(IS_ERR(spt_thread_id[cpu]))
 		{
 			spt_thread_id[cpu] = NULL;
@@ -322,6 +332,7 @@ int pone_case_init(void)
 			kthread_bind(spt_thread_id[cpu],cpu);
 			wake_up_process(spt_thread_id[cpu]);
 		}
+		thrd_cnt++;
 	}
 
 	return 0;
@@ -457,8 +468,8 @@ void splitter_wakeup_cluster(void)
 		ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
 		if(ret)
 		{
-			if(spt_thread_id[1]->state != TASK_RUNNING)
-			wake_up_process(spt_thread_id[1]);		
+			if(spt_thread_id[1 + pone_thread_interval*i]->state != TASK_RUNNING)
+			wake_up_process(spt_thread_id[1+pone_thread_interval*i]);		
 		}
 		ret = 0;
 

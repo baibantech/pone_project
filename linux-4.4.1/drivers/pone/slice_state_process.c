@@ -23,6 +23,7 @@ unsigned long long alloc_check = 0;
 unsigned long slice_watch_que_debug = 1;
 unsigned long slice_que_debug = 1;
 
+
 unsigned long long slice_alloc_num = 0;
 unsigned long long slice_in_que_ok =0;
 unsigned long long slice_in_que_err = 0;
@@ -507,7 +508,14 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						if(0 == process_virt_page_release(page_addr,org_slice))
 						{
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
-							kunmap(org_slice);
+							
+							if(0 !=  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_NULL))
+							{
+								printk("bug bug bug bug bug \r\n");
+								while(1);
+							}
+							kunmap_atomic(page_addr);
+							put_page(org_slice);
 							ret = 0;
 							break;
 
@@ -530,7 +538,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 #endif
 					}
 					
-					kunmap(org_slice);
+					kunmap_atomic(page_addr);
 #if 0
 					if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
 					{
