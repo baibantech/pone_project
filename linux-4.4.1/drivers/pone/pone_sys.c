@@ -99,7 +99,7 @@ extern unsigned long long data_cmp_ptr_null;
 
 extern void* page_insert;
 extern char page_in_tree[];
-
+extern int deamon_scan_period;
 #if 0
 extern unsigned long long page_anon_num;
 extern unsigned long long page_read_fault_num;
@@ -393,6 +393,9 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 	unsigned long store_tmp = 0;	
 	err =  kstrtoul(buf,10,&store_tmp);
 	printk("store_tmp is %ld\r\n",store_tmp);
+
+	deamon_scan_period = store_tmp;
+#if 0
 	//pone_file_watch = store_tmp;
 	if(1 ==store_tmp)
 	{
@@ -404,6 +407,8 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 		slice_watch_que_debug =0;
 		slice_que_debug = 0;
 	}
+#endif
+
 
 	return count;
 }
@@ -420,7 +425,10 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	printk_debug_map_cnt();
 	walk_guest_mem_pool();
 	if(release_merge_page)
-	printk("release page count %d\r\n",page_count(release_merge_page));
+	{
+		printk("release page count %d\r\n",page_count(release_merge_page));
+		printk("release page state %lld\r\n",get_slice_state_by_id(page_to_pfn(release_merge_page)));
+	}
 	//show_page_err_info();
 	return sprintf(buf,"check dmesg buffer11111");
 }

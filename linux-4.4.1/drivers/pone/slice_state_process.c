@@ -323,14 +323,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 			}
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
 			
-#if 0
-			if(per_cpu(in_que_cnt,smp_processor_id())++  > 100)
-			{
-				per_cpu(in_que_cnt,smp_processor_id()) = 0;
-				lfrwq_set_r_max_idx(slice_que,lfrwq_get_w_idx(slice_que));
-				splitter_thread_wakeup();
-			}
-#endif
 			slice_debug_area_insert(org_slice);
 
 			do

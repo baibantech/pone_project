@@ -14,6 +14,7 @@
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
 #include  "splitter_adp.h"
+int deamon_scan_period = 20000;
 unsigned long long wakeup_deamon_cnt = 0;
 
 void set_deamon_run(void)
@@ -194,9 +195,9 @@ retry:
 					{
 						end_jiffies = get_jiffies_64();
 						cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
-						if(cost_time >10000)
+						if(cost_time >deamon_scan_period)
 						{
-							msleep(10000);
+							msleep(deamon_scan_period);
 							start_jiffies = get_jiffies_64();
 						}
 						msleep(1);
@@ -217,14 +218,14 @@ retry:
 		end_jiffies = get_jiffies_64();
 
 		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
-		if(cost_time >10000)
+		if(cost_time >deamon_scan_period)
 		{
-			msleep(10000);
+			msleep(deamon_scan_period);
 		
 		}
 		else
 		{	
-			msleep(10000 - cost_time);
+			msleep(deamon_scan_period - cost_time);
 		}
 
 #if 0

@@ -9,7 +9,9 @@
 #include <linux/highmem.h>
 #include <linux/rmap.h>
 #include <asm/tlbflush.h>
+#include <pone/slice_state.h>
 #include <pone/virt_release.h>
+
 extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
 char* release_dsc = "page can release xxx";
@@ -189,7 +191,9 @@ int virt_mem_guest_init(void)
 int virt_mem_release_init(void)
 {
 	void *page_addr = NULL;
-	int i = 0;
+	int i = i;
+	unsigned long slice_id ;
+	unsigned int nid;
 	if(!release_merge_page)
 	{
 		release_merge_page = alloc_page(GFP_KERNEL);
@@ -198,6 +202,14 @@ int virt_mem_release_init(void)
 			page_addr = kmap(release_merge_page);
 			memset(page_addr,0,PAGE_SIZE);
 			kunmap(release_merge_page);
+			nid = slice_idx_to_node(page_to_pfn(release_merge_page));
+			slice_id = slice_nr_in_node(nid,page_to_pfn(release_merge_page));
+			if(0 != change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE))
+			{
+				printk("BUG in virt mem release\r\n");
+				return -1;
+			}
+
 	
 			for(i = 0;i<MEM_POOL_MAX; i++)
 			{
@@ -446,7 +458,8 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	pte_t *r_ptep;
 	spinlock_t *r_ptl;
 	pte_t r_pte;
-	
+
+	int ret = -1;
 	if(!page_mem)
 	{
 		return -1;
@@ -602,12 +615,13 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 					page_add_anon_rmap(release_merge_page, vma, hva);
 					set_pte_at_notify(mm, hva, r_ptep, pte_wrprotect(mk_pte(release_merge_page, vma->vm_page_prot)));
 					page_remove_rmap(release_page);
+					ret = 0;
 				}
 				pte_unmap_unlock(r_ptep, r_ptl);
 				kunmap(page);
 				up_read(&mm->mmap_sem);
 				mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
-				return 0;
+				return ret;
 			}
 			else
 			{

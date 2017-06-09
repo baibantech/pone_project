@@ -3012,14 +3012,18 @@ spt_debug("=====================================================\r\n");
                         spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
                                     cmpres.pos, cmpres.smallfs, cur_vec.val);
                         printk("data_in_tree:%p\r\n", pdh->pdata);
-                        for(i = 0 ; i < 32 ;i++)
+                        for(i = 0 ; i < 256 ;i++)
                         {
-                            printk("%02x ",*((unsigned char*)pcur_data +i));
+                            if(0 == i%32)
+								printk("\r\n");
+							printk("%02x ",*((unsigned char*)pcur_data +i));
                         
                         }
                         printk("data_insert:%p\r\n", pqinfo->data);
-                        for(i = 0 ; i < 32 ;i++)
+                        for(i = 0 ; i < 256 ;i++)
                         {
+                            if(0 == i%32)
+								printk("\r\n");
                             printk("%02x ",*((unsigned char*)prdata +i));
                         
                         }

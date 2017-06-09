@@ -210,7 +210,6 @@ static int __init merge_mem_init(void)
 		return -1;
 	}
 #endif
-	virt_mem_release_init();
 	slice_per_cpu_count_init();
 	slice_debug_area_init();
 	pone_case_init();
@@ -224,6 +223,7 @@ static int __init merge_mem_init(void)
 		printk("slice_state_control_init err \r\n");
 		return -1;
 	}
+	virt_mem_release_init();
 	slice_merge_timer_init(50);
 	pone_sysfs_init();
 	printk("slice_control_init \r\n");
