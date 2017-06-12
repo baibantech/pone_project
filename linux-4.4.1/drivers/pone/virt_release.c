@@ -67,6 +67,9 @@ int virt_mark_page_release(struct page *page)
 	struct virt_release_mark *mark ;
 	if(!guest_mem_pool)
 	{
+#ifdef GUEST_KERNEL
+		clear_highpage(page);
+#endif
 		return -1;
 	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_begin);
@@ -76,9 +79,10 @@ int virt_mark_page_release(struct page *page)
 	idx = alloc_id%guest_mem_pool->desc_max;
 	state = guest_mem_pool->desc[idx];
 	//printk("pool id %d  alloc_id %lld  state %lld\r\n",pool_id,alloc_id,state);
+	
+	mark =kmap_atomic(page);
 	if(0 == state)
 	{
-		mark =kmap_atomic(page);
 		if(0 != atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],0,page_to_pfn(page)))
 		{
 			pool_id = MEM_POOL_MAX +1;
@@ -90,18 +94,26 @@ int virt_mark_page_release(struct page *page)
 		{
 			atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_ok);
 		}
-		strcpy(mark->desc,guest_mem_pool->mem_ind);
 		mark->pool_id = pool_id;
 		mark->alloc_id = idx;
+		strcpy(mark->desc,guest_mem_pool->mem_ind);
 		kunmap_atomic(mark);
 
 		atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 		return 0;
 	}
+	else
+	{
+		mark->pool_id = MEM_POOL_MAX +1;
+		mark->alloc_id = guest_mem_pool->desc_max +1;
+		strcpy(mark->desc,guest_mem_pool->mem_ind);
+		kunmap_atomic(mark);
+	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_err_state);
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
 	return -1;
 }
+
 EXPORT_SYMBOL(virt_mark_page_release);
 int virt_mark_page_alloc(struct page *page)
 {
@@ -110,6 +122,7 @@ int virt_mark_page_alloc(struct page *page)
 	unsigned long long state;
 	unsigned long long idx ;
 	struct virt_release_mark *mark ;
+	
 	if(!guest_mem_pool)
 	{
 		return 0;
@@ -139,7 +152,6 @@ int virt_mark_page_alloc(struct page *page)
 					else
 					{
 						
-						atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_conflict);
 						while(mark->desc[0] != '0')
 						{
 
@@ -149,7 +161,15 @@ int virt_mark_page_alloc(struct page *page)
 			}
 		}
 	}
-		
+	else
+	{
+		void *page_mem = kmap_atomic(release_merge_page);
+		if(0 != memcmp(mark,page_mem,PAGE_SIZE))
+		{
+			atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_conflict);
+		}
+		kunmap_atomic(page_mem);
+	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_state);
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
 	kunmap_atomic(mark);

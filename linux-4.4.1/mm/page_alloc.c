@@ -1032,29 +1032,16 @@ static void __init __free_pages_boot_core(struct page *page,
 	unsigned int nr_pages = 1 << order;
 	struct page *p = page;
 	unsigned int loop;
-#ifdef CONFIG_PONE_MODULE
-	void *page_addr = NULL;
-#endif
 
 	prefetchw(p);
 	for (loop = 0; loop < (nr_pages - 1); loop++, p++) {
 		prefetchw(p + 1);
 		__ClearPageReserved(p);
 		set_page_count(p, 0);
-#ifdef CONFIG_PONE_MODULE
-		page_addr = kmap(p);
-		memset(page_addr,0,4096);
-		kunmap(p);
-#endif
 	}
 	__ClearPageReserved(p);
 	set_page_count(p, 0);
 
-#ifdef CONFIG_PONE_MODULE
-	page_addr = kmap(p);
-	memset(page_addr,0,4096);
-	kunmap(p);
-#endif	
 	page_zone(page)->managed_pages += nr_pages;
 	set_page_refcounted(page);
 	__free_pages(page, order);
@@ -1402,20 +1389,22 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 {
 	int i;
 
+#ifdef CONFIG_PONE_MODULE
+	int ret = -1;
+#endif
+
 	for (i = 0; i < (1 << order); i++) {
 		struct page *p = page + i;
 		if (unlikely(check_new_page(p)))
 			return 1;
 	}
 
-
 #ifdef CONFIG_PONE_MODULE
 	for(i = 0;  i<(1 << order); i++)
 	{
-		virt_mark_page_alloc(page + i);
+		ret = virt_mark_page_alloc(page + i);
 	}
 #endif
-
 
 	set_page_private(page, 0);
 	set_page_refcounted(page);
@@ -1424,10 +1413,18 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 	kernel_map_pages(page, 1 << order, 1);
 	kasan_alloc_pages(page, order);
 
+#ifdef CONFIG_PONE_MODULE
+	if(0 == ret)	
+	{
+		if (gfp_flags & __GFP_ZERO)
+		for (i = 0; i < (1 << order); i++)
+			clear_highpage(page + i);
+	}
+#else
 	if (gfp_flags & __GFP_ZERO)
 		for (i = 0; i < (1 << order); i++)
 			clear_highpage(page + i);
-
+#endif
 	if (order && (gfp_flags & __GFP_COMP))
 		prep_compound_page(page, order);
 

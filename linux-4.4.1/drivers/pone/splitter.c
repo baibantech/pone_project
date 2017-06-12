@@ -29,6 +29,7 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/random.h>
+#include <linux/highmem.h>
 #include "vector.h"
 #include "chunk.h"
 extern void slice_data_cmp(void *page,unsigned int lineno);
@@ -5720,6 +5721,22 @@ void debug_cluster_travl(cluster_head_t *pclst)
                     debug_dh_ext_print((spt_dh_ext *)pcur_data);
                 }
                 debug_data_print(data);
+				if(pclst->is_bottom)
+				{
+					unsigned char *data_mem = NULL;
+					int i = 0;
+					data_mem = kmap(data);
+					for(i = 0 ; i < 256 ;i++)
+					{
+						if(0 == (i %32 ))
+						{
+							printk("\r\n");
+						}
+						printk("%02x ",*(data_mem+i));
+
+					}
+					kunmap(data);
+				}
             }
             
             if(spt_stack_empty(pstack))
