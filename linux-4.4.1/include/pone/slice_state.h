@@ -84,6 +84,12 @@ int need_wakeup_deamon(void);
 void splitter_deamon_wakeup(void);
 int slice_deamon_init(void);
 extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
+unsigned long long get_slice_volatile_cnt(unsigned int nid,unsigned long slice_id);
+unsigned long long change_slice_volatile_cnt(unsigned int nid,unsigned long slice_id,unsigned long long old_cnt,unsigned long long new_cnt);
+void clear_deamon_cnt(unsigned int nid,unsigned long slice_id);
+
+
+
 static inline int slice_idx_to_node(unsigned long slice_idx)
 {
     int i ;
