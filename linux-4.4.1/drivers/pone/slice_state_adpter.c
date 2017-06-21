@@ -72,7 +72,7 @@ unsigned long long make_slice_protect_err_map = 0;
 unsigned long long make_slice_protect_err_lock = 0;
 unsigned long long make_slice_protect_err_mapcnt = 0;
 extern int is_virt_mem_pool_page(struct mm_struct *mm ,unsigned long address);
-#if 1
+#if 0
 int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
 {
@@ -148,32 +148,31 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	int err = -1;
 	unsigned long mmun_start;	/* For mmu_notifiers */
 	unsigned long mmun_end;		/* For mmu_notifiers */
-#if 0
-	addr = page_address_in_vma(page, vma);
-	if (addr == -EFAULT)
-		goto out;
-#endif
+	
 	BUG_ON(PageTransCompound(page));
 	addr = address;
-	if(addr != address)
+	
+	if(!PageAnon(page))
 	{
-		printk("error addr\r\n");
-		goto out ;
+		return -1;
+	}
+	if(is_virt_mem_pool_page(mm,addr))
+	{
+		return -1;
 	}
 
 	mmun_start = addr;
 	mmun_end   = addr + PAGE_SIZE;
 	mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
 
-	ptep = page_check_address(page, mm, addr, &ptl, 0);
+	ptep = __page_try_check_address(page, mm, addr, &ptl, 0);
 	if (!ptep)
 	{
-		
 		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_null);
 		goto out_mn;
 	}
 
-	if (pte_write(*ptep) || pte_dirty(*ptep)) {
+	if (pte_write(*ptep)) {
 		pte_t entry;
 
 		swapped = PageSwapCache(page);
@@ -194,10 +193,9 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 		 */
 		if (page_mapcount(page) + swapped != page_count(page)) {
 			set_pte_at(mm, addr, ptep, entry);
+			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_mapcnt);
 			goto out_unlock;
 		}
-		if (pte_dirty(entry))
-			set_page_dirty(page);
 		entry = pte_mkclean(pte_wrprotect(entry));
 		set_pte_at_notify(mm, addr, ptep, entry);
 	}
@@ -207,7 +205,6 @@ out_unlock:
 	pte_unmap_unlock(ptep, ptl);
 out_mn:
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
-out:
 	return err;
 }
 #endif
@@ -337,6 +334,8 @@ static void add_mm_counter_fast(struct mm_struct *mm, int member, int val)
 
 #define dec_mm_counter_fast(mm, member) add_mm_counter_fast(mm, member, -1)
 extern unsigned long long slice_file_chgref_num;
+
+#if 0
 int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
                     unsigned long addr, void *arg)
 {
@@ -393,7 +392,77 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 
     return 0;
 }
+#else
 
+int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
+                    unsigned long addr, void *arg)
+{
+	struct mm_struct *mm = vma->vm_mm;
+	pte_t *ptep;
+	spinlock_t *ptl;
+	int swapped;
+	int err = -1;
+	unsigned long mmun_start;	/* For mmu_notifiers */
+	unsigned long mmun_end;		/* For mmu_notifiers */
+    struct page *new_page = arg;
+	pte_t entry ;
+
+	if(PageAnon(page))
+	{
+		mmun_start = addr;
+		mmun_end   = addr + PAGE_SIZE;
+		mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
+
+		ptep = __page_try_check_address(page, mm, addr, &ptl, 0);
+		if (!ptep)
+		{	
+			goto out_mn;
+		}
+
+		if(pte_write(*ptep))
+		{
+			goto out_unlock;
+		}     
+		
+		get_page(new_page);
+		page_add_anon_rmap(new_page, vma, addr);
+
+		flush_cache_page(vma, addr, pte_pfn(*ptep));
+		entry = ptep_clear_flush_notify(vma, addr, ptep);
+		
+		if(SLICE_WATCH != get_slice_state_by_id(page_to_pfn(page)))
+		{
+			set_pte_at(mm, addr, ptep, entry);
+			goto out_unlock;	
+		}
+
+		if(SLICE_FIX != get_slice_state_by_id(page_to_pfn(new_page)))
+		{
+			set_pte_at(mm, addr, ptep, entry);
+			goto out_unlock;	
+		}
+		
+		
+		set_pte_at_notify(mm, addr, ptep, pte_wrprotect(mk_pte(new_page, vma->vm_page_prot)));
+		
+		page_remove_rmap(page);
+    
+		if (!page_mapped(page))
+			try_to_free_swap(page);
+		
+		put_page(page);
+		err = 0;	
+		out_unlock:
+			pte_unmap_unlock(ptep, ptl);
+		out_mn:
+			mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+			return err;
+
+	}
+	return -1;
+}
+
+#endif
 int  change_reverse_ref(unsigned long slice_idx,unsigned long new_slice)
 {
     struct page *page = pfn_to_page(slice_idx);

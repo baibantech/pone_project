@@ -359,6 +359,7 @@ static int splitter_daemon_thread(void *data)
 				
 				if(SLICE_VOLATILE == slice_state)
 				{
+#if 0
 get_cnt:
 					if(0 != (slice_vcnt = get_slice_volatile_cnt(i,j)))
 					{
@@ -384,7 +385,7 @@ get_cnt:
 
 						}
 					}
-
+#endif
 					if(0 != change_slice_state(i,j,SLICE_VOLATILE,SLICE_ENQUE))
 					{
 						need_repeat++;
