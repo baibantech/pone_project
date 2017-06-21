@@ -1982,11 +1982,48 @@ struct debug_map_cnt
     int idx;
     int line[65536];
 };
+struct debug_find_path
+{
+    char *page;
+    int startbit;
+    int len;
+    int direct;
+};
+
+struct debug_find_path debug_path[48][1024] = {0};
+int path_index[48] = {0};
+unsigned char path_data[48][4096] = {0};
+
 u64 map_cnt[48] = {0};
 u64 unmap_cnt[48] = {0};
 
 struct debug_map_cnt map_st[48] = {0};
 struct debug_map_cnt unmap_st[48] = {0};
+
+void print_debug_path(int id)
+{
+    unsigned char* pfind;
+    int i;
+    pfind = path_data[id];
+    printk("=======path_data:=======\r\n");
+    for(i = 0 ; i < 4096 ;i++)
+    {
+        if(0 == i%32)
+            printk("\r\n");
+        printk("%02x ",*((unsigned char*)pfind +i));
+    
+    }
+    printk("=======find_path:=======\r\n");
+    for(i=0;i<path_index[id]&& i<1024;i++)
+    {
+        printk("page:%p startbit:%d len:%d direct:%d\r\n", 
+            debug_path[id][i].page,
+            debug_path[id][i].startbit,
+            debug_path[id][i].len,
+            debug_path[id][i].direct);
+    }
+    return;
+}
 
 void printk_debug_map_cnt(void)
 {
@@ -2047,6 +2084,9 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
 //    spt_cb_get_key get_key;
     spt_cb_end_key finish_key_cb;
     int i;
+    char *pcur_data2;
+    spt_dh *pdh2;
+    int cur_data2;
 
     if(map_cnt[g_thrd_id] != unmap_cnt[g_thrd_id])
     {
@@ -2103,6 +2143,7 @@ refind_start:
     pcur = pqinfo->pstart_vec;
     cur_vecid = pre_vecid = pqinfo->startid;    
 
+    path_index[g_thrd_id] = 0;
 refind_forward:
     //debug
     if(atomic_read((atomic_t *) &dbg_switch) == 1)
@@ -2120,10 +2161,12 @@ refind_forward:
     if(pcur == pclst->pstart)
     {
         startbit = pclst->startbit;
+        path_index[g_thrd_id] = 0;
     }
     else
     {
         startbit = signpost + cur_vec.pos + 1;
+        path_index[g_thrd_id]--;
     }
     endbit = pqinfo->endbit;
     if(cur_vec.status == SPT_VEC_RAW)
@@ -2274,6 +2317,40 @@ refind_forward:
             }
             else if(cur_vec.type == SPT_VEC_RIGHT)
             {
+                if(cur_data == SPT_INVALID)//yzx
+                {
+                    cur_data = get_data_id(pclst, pcur);
+                    if(cur_data >= 0 && cur_data < SPT_INVALID)
+                    {
+                        pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                        smp_mb();
+                        pcur_data = pclst->get_key_in_tree(pdh->pdata);
+                        map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
+                        map_st[g_thrd_id].idx++;
+                        map_cnt[g_thrd_id]++;
+                    }
+                    else if(cur_data == SPT_DO_AGAIN)
+                    {
+                        cur_data = SPT_INVALID;
+                        goto refind_start;
+                    }
+                    else if(cur_data == SPT_NULL)
+                    {
+                        BUG();
+                    }
+                    else
+                    {
+                        //SPT_NOMEM or SPT_WAIT_AMT;
+                        
+                        finish_key_cb(prdata);
+                        unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
+                        unmap_st[g_thrd_id].idx++;
+                        unmap_cnt[g_thrd_id]++;
+    					if(ret == SPT_OK)
+    						return ret;
+                        return cur_data;
+                    }
+                }            
                 pnext = (spt_vec *)vec_id_2_ptr(pclst,cur_vec.rd);
                 next_vec.val = pnext->val;
                 next_vecid = cur_vec.rd;
@@ -2694,7 +2771,7 @@ refind_forward:
                     }
                 }
             }
-
+#if 0
             if(cur_data == SPT_INVALID)//yzx
             {
                 cur_data = get_data_id(pclst, pcur);
@@ -2782,8 +2859,18 @@ refind_forward:
                 }
                 
             }
+#endif            
             
             cmp = diff_identify(prdata, pcur_data, startbit, len, &cmpres);
+
+#if 0
+			debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].page = pdh->pdata;
+            debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].startbit = startbit;
+            debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].len = len;
+            debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].direct = 1;
+            spt_bit_cpy(path_data[g_thrd_id],pcur_data,startbit,len);
+            path_index[g_thrd_id]++;
+#endif       
             if(cmp == 0)
             {
                 startbit += len;              
@@ -2845,8 +2932,8 @@ refind_forward:
                         st_insert_info.cmpres = cmpres;
                         if(pclst->is_bottom)
 						{
-							slice_data_cmp(pdh->pdata,__LINE__);
-							slice_data_cmp(pdata,__LINE__);
+							//slice_data_cmp(pdh->pdata,__LINE__);
+							//slice_data_cmp(pdata,__LINE__);
 						}
 						ret = do_insert_up_via_r(pclst, &st_insert_info, pdata);
                         if(ret == SPT_DO_AGAIN)
@@ -3013,7 +3100,7 @@ spt_debug("=====================================================\r\n");
                         spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
                                     cmpres.pos, cmpres.smallfs, cur_vec.val);
                         printk("data_in_tree:%p\r\n", pdh->pdata);
-                        for(i = 0 ; i < 256 ;i++)
+                        for(i = 0 ; i < 4096 ;i++)
                         {
                             if(0 == i%32)
 								printk("\r\n");
@@ -3021,7 +3108,7 @@ spt_debug("=====================================================\r\n");
                         
                         }
                         printk("data_insert:%p\r\n", pqinfo->data);
-                        for(i = 0 ; i < 256 ;i++)
+                        for(i = 0 ; i < 4096 ;i++)
                         {
                             if(0 == i%32)
 								printk("\r\n");
@@ -3476,6 +3563,33 @@ spt_debug("=====================================================\r\n");
                         }
                     }
                 }
+#if 0
+				cur_data2 = get_data_id(pclst, pnext);
+                if(cur_data2 >= 0 && cur_data2 < SPT_INVALID)
+                {
+                    pdh2 = (spt_dh *)db_id_2_ptr(pclst, cur_data2);
+                    smp_mb();
+                    pcur_data2 = pclst->get_key_in_tree(pdh2->pdata);
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].page = pdh2->pdata;
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].startbit = startbit;
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].len = len;
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].direct = 0;
+                    spt_bit_cpy(path_data[g_thrd_id],pcur_data2,startbit,len);
+                    pclst->get_key_in_tree_end(pcur_data2);
+                    path_index[g_thrd_id]++;    
+                }
+                else
+                {
+                    printk("\r\n get dataid fail\r\n");
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].page = 0;
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].startbit = startbit;
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].len = len;
+                    debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].direct = 0;
+                    spt_bit_clear(path_data[g_thrd_id],startbit,len);
+                    path_index[g_thrd_id]++;
+                }
+#endif
+                
                 /*insert*/
                 if(fs_pos < startbit + len)
                 {
@@ -4050,7 +4164,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
 
     
-    for(i=0;i< 0;i++)
+    for(i=0;i< 999;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);
@@ -5726,7 +5840,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
 					unsigned char *data_mem = NULL;
 					int i = 0;
 					data_mem = kmap(data);
-					for(i = 0 ; i < 256 ;i++)
+					for(i = 0 ; i < 4096 ;i++)
 					{
 						if(0 == (i %32 ))
 						{
