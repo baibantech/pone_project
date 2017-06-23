@@ -2166,6 +2166,17 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		/* Free the old page.. */
 		new_page = old_page;
 		page_copied = 1;
+		#ifdef CONFIG_PONE_MODULE
+		if(process_slice_check())
+		{
+			if(op_page&&page_copied)
+			{
+				mark_volatile_cnt_in_wcopy(page_to_pfn(old_page),page_to_pfn(op_page));
+
+			}
+		}
+		#endif	
+	
 	} else {
 		mem_cgroup_cancel_charge(new_page, memcg);
 	}
@@ -2179,8 +2190,9 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 	if(process_slice_check())
 	{
 		if(op_page&&page_copied)
-		process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page,address>>22);
-		
+		{
+			process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page,address>>22);
+		}
 	}
 	#endif
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);

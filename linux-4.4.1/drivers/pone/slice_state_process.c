@@ -196,7 +196,7 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
     unsigned long long cur_state_unit;
     unsigned long long new_state_unit;
 
-    unsigned long long *state_unit_addr = get_slice_state_unit_addr(nid,slice_id);
+    volatile unsigned long long *state_unit_addr = get_slice_state_unit_addr(nid,slice_id);
 //	printk("state unit addr is %p\r\n",state_unit_addr);
 //	printk("state unit mem is 0x%llx\r\n",*state_unit_addr);
     do
@@ -338,6 +338,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					break;
 				}
 #if 1
+
+				add_slice_volatile_cnt(nid,slice_id);
 				if(0 == change_slice_state(nid,slice_id,SLICE_NULL,SLICE_VOLATILE)) {
 					ret = 0;
 					atomic64_add(1,(atomic64_t*)&slice_change_volatile_ok);
@@ -381,6 +383,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						if(0 == change_slice_state(nid,slice_id,SLICE_IDLE,SLICE_NULL))
 						{
 							ret = 0;
+					clear_deamon_cnt(nid,slice_id);
 							break;
 						}
 					}
@@ -391,6 +394,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							//printk("fix free slice is %p,mapcount is %d\r\n",org_slice,atomic_read(&org_slice->_mapcount));
 							atomic64_add(1,(atomic64_t*)&slice_fix_free_num);
 							ret = 0;
+					clear_deamon_cnt(nid,slice_id);
 							break;
 						}
 
@@ -399,6 +403,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						{
 							atomic64_add(1,(atomic64_t*)&slice_volatile_free_num);
 							ret = 0;
+					clear_deamon_cnt(nid,slice_id);
 							break;
 						}
 					}
@@ -409,6 +414,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						{
 							atomic64_add(1,(atomic64_t*)&slice_other_free_num);
 							ret = -1 ;/*sys do not free this page*/
+					clear_deamon_cnt(nid,slice_id);
 							break;
 						}
 					}
@@ -589,6 +595,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							
 							if (0 == change_slice_state(nid,slice_id,cur_state,SLICE_VOLATILE))
 							{
+								add_slice_volatile_cnt(nid,slice_id);
 								break;
 							}
 					
@@ -649,6 +656,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
 						put_page(org_slice);
 						atomic64_add(1,(atomic64_t*)slice_insert_sd_tree_err);
+						add_slice_volatile_cnt(nid,slice_id);
 						break;
 					}
 						
@@ -679,6 +687,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							//printk("change ref ret err\r\n");
 							atomic64_add(1,(atomic64_t*)&slice_change_ref_err);
 							while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
+							add_slice_volatile_cnt(nid,slice_id);
 							delete_sd_tree(slice_idx,SLICE_FIX);
 							put_page(org_slice);
 						}

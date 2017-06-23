@@ -79,23 +79,29 @@ unsigned long long change_slice_volatile_cnt(unsigned int nid , unsigned long sl
 	unsigned long long new_cnt_unit = 0;	
     unsigned long long cur_cnt_unit = 0;
 	unsigned long long tmp =0;
-	unsigned long long *state_unit_addr = deamon_volatile->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT);
+	volatile unsigned long long *state_unit_addr = deamon_volatile->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT);
     int offset = slice_id%SLICE_NUM_PER_UNIT;
     int offsetbit = offset*SLICE_STATE_BITS;
 	
 	do
     {
-        cur_cnt_unit = *state_unit_addr;
-		if(old_cnt != (cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK)
+		barrier();
+		if(new_cnt > 7)
 		{
+			printk("volatile new cnt is err %d\r\n",new_cnt);
+		}
+        cur_cnt_unit = *state_unit_addr	;
+		if(old_cnt != ((cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK))
+		{
+			printk("volatile old cnt is %lld,cur cnt is %lld\r\n",old_cnt, (cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK);
 			return -1;
 		}
         
+		tmp = cur_cnt_unit; 
 		if(0 != offsetbit)
 		{
 			low_unit = (tmp << (SLICE_STATE_UNIT_BITS - offsetbit)) >> (SLICE_STATE_UNIT_BITS - offsetbit);
 		}
-		tmp = *state_unit_addr; 
 		high_unit = (tmp  >> (offsetbit + SLICE_STATE_BITS))<<(offsetbit+SLICE_STATE_BITS);
 		new_cnt_unit =   high_unit + (new_cnt << offsetbit) + low_unit;
     
@@ -124,23 +130,30 @@ unsigned long long change_slice_scan_cnt(unsigned int nid , unsigned long slice_
 	unsigned long long new_cnt_unit = 0;	
     unsigned long long cur_cnt_unit = 0;
 	unsigned long long tmp = 0;
-	unsigned long long *state_unit_addr = deamon_scan_volatile->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT);
+	volatile unsigned long long *state_unit_addr = deamon_scan_volatile->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT);
     int offset = slice_id%SLICE_NUM_PER_UNIT;
     int offsetbit = offset*SLICE_STATE_BITS;
 	
 	do
     {
-        cur_cnt_unit = *state_unit_addr;
-		if(old_cnt != (cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK)
+		barrier();
+		if(new_cnt > 7)
 		{
+			printk("scan new cnt err %d\r\n",new_cnt);
+		}
+        cur_cnt_unit = *state_unit_addr;
+		if(old_cnt != ((cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK))
+		{
+			printk("scan old cnt is %lld,cur cnt is %lld\r\n",old_cnt, (cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK);
 			return -1;
 		}
-        
+		tmp = cur_cnt_unit; 
+		
 		if(0 != offsetbit)
 		{
 			low_unit = (tmp << (SLICE_STATE_UNIT_BITS - offsetbit)) >> (SLICE_STATE_UNIT_BITS - offsetbit);
 		}
-		tmp = *state_unit_addr; 
+		
 		high_unit = (tmp  >> (offsetbit + SLICE_STATE_BITS))<<(offsetbit+SLICE_STATE_BITS);
 		new_cnt_unit =   high_unit + (new_cnt << offsetbit) + low_unit;
     
@@ -157,39 +170,105 @@ void clear_deamon_cnt(unsigned int nid,unsigned long slice_id)
 {
 	unsigned long long deamon_vcnt = 0;
 	unsigned long long deamon_scnt = 0;
-
+#if 1
 	do
 	{
-		deamon_vcnt = get_slice_volatile_cnt(nid,slice_id);
-		if(deamon_vcnt != 0)
+		barrier();
+		deamon_scnt = get_slice_scan_cnt(nid,slice_id);
+		if(deamon_scnt != 0)
 		{
-			if(0 != change_slice_volatile_cnt(nid,slice_id,deamon_vcnt,0))
+			if(0 != change_slice_scan_cnt(nid,slice_id,deamon_scnt,0))
 			{
 				continue;
 			}
 		}
-		deamon_scnt = get_slice_volatile_cnt(nid,slice_id);
-		if(deamon_scnt != 0)
+		deamon_vcnt = get_slice_volatile_cnt(nid,slice_id);
+		if(deamon_vcnt != 0)
 		{
-			if(0 == change_slice_volatile_cnt(nid,slice_id,deamon_scnt,0))
+			if(0 == change_slice_volatile_cnt(nid,slice_id,deamon_vcnt,0))
 			{
 				break;
 			}
 		}
+		else
+		{
+			break;
+		}
 	}
 	while(1);
+#endif
 }
-
-
-void add_slice_volatile_cnt(unsigned int nid,unsigned long long slice_id)
+void add_slice_volatile_cnt_test(unsigned int nid,unsigned long slice_id)
 {
 
 
-
-
-
 }
 
+void add_slice_volatile_cnt(unsigned int nid,unsigned long slice_id)
+{
+	unsigned long long deamon_vcnt = 0;
+#if 1
+	do
+	{
+		barrier();
+		deamon_vcnt = get_slice_volatile_cnt(nid,slice_id);
+		//printk("deamon_vcnt is %lld\r\n",deamon_vcnt);
+		if(deamon_vcnt < 7)
+		{
+			if(0 != change_slice_volatile_cnt(nid,slice_id,deamon_vcnt,deamon_vcnt+1))
+			{
+				continue;
+			}
+		}
+		break;
+	}
+	while(1);
+#endif
+}
+
+void mark_volatile_cnt_in_wcopy(unsigned long old_slice,unsigned long new_slice)
+{
+	unsigned int nid,nid1;
+	unsigned long slice_id,slice_id1;
+	unsigned long long deamon_vcnt = 0;
+	unsigned long long deamon_vcnt1 = 0;
+
+	nid = slice_idx_to_node(old_slice);
+	slice_id = slice_nr_in_node(nid,old_slice);
+	nid1 = slice_idx_to_node(new_slice);
+	slice_id1 = slice_nr_in_node(nid1,new_slice);
+
+	do
+	{
+		deamon_vcnt = get_slice_volatile_cnt(nid,slice_id);
+		if(deamon_vcnt < 7)
+		{
+			if(0 != change_slice_volatile_cnt(nid,slice_id,deamon_vcnt,deamon_vcnt+1))
+			{	
+				continue;
+			}
+		}
+new_slice_cnt:
+		deamon_vcnt1 = get_slice_volatile_cnt(nid1,slice_id1);
+		if(deamon_vcnt < 7)
+		{
+			if(0 == change_slice_volatile_cnt(nid1,slice_id1,deamon_vcnt1,deamon_vcnt+1))
+			{
+				break;
+			}
+			goto new_slice_cnt; 
+		}
+		else
+		{
+			if(0 == change_slice_volatile_cnt(nid1,slice_id1,deamon_vcnt1,deamon_vcnt))
+			{
+				break;
+			}
+			goto new_slice_cnt; 
+		}
+	}
+	while(1);
+}
 
 
 
@@ -318,6 +397,17 @@ retry:
 }
 #endif
 
+unsigned long long slice_deamon_volatile_cnt[16] = {0};
+
+void show_slice_volatile_cnt(void)
+{
+	int i = 0;
+	for(i =0 ;i <16 ;i++)
+	{
+		printk("num idex %d,num %lld\r\n",i,slice_deamon_volatile_cnt[i]);
+	}
+
+}
 
 static int splitter_daemon_thread(void *data)
 {
@@ -359,7 +449,7 @@ static int splitter_daemon_thread(void *data)
 				
 				if(SLICE_VOLATILE == slice_state)
 				{
-#if 0
+#if 1
 get_cnt:
 					if(0 != (slice_vcnt = get_slice_volatile_cnt(i,j)))
 					{
@@ -370,12 +460,17 @@ get_cnt:
 							{
 								goto get_cnt;
 							}
+							atomic64_add(1,(atomic64_t*)&slice_deamon_volatile_cnt[slice_vcnt]);
 						}
 						else
 						{
 							if(slice_scan_cnt > slice_vcnt)
 							{
-								printk("deamon cnt bug bug bug bug \r\n");
+								printk("deamon cnt bug bug bug bug %lld,%lld \r\n",slice_scan_cnt,slice_vcnt);
+								if(0 == slice_vcnt)
+								{
+									continue;
+								}
 							}
 							if(0 != change_slice_scan_cnt(i,j,slice_scan_cnt,slice_scan_cnt+1))
 							{

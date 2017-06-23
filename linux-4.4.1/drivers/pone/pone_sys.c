@@ -413,10 +413,11 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 	return count;
 }
 PONE_ATTR(pone_debug);
-
+extern void add_slice_volatile_cnt_test(unsigned int nid,unsigned long slice_id);
 extern int slice_debug_area_show(void);
 extern void print_host_virt_mem_pool(void);
 extern void walk_guest_mem_pool(void);
+extern void show_slice_volatile_cnt(void);
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {	
 	//slice_debug_area_show();
@@ -430,6 +431,8 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 		printk("release page state %lld\r\n",get_slice_state_by_id(page_to_pfn(release_merge_page)));
 	}
 	//show_page_err_info();
+	add_slice_volatile_cnt_test(0,1000);
+	show_slice_volatile_cnt();
 	return sprintf(buf,"check dmesg buffer11111");
 }
 
