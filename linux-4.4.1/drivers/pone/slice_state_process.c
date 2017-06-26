@@ -15,6 +15,8 @@
 #include "chunk.h"
 #include  "splitter_adp.h"
 #include <pone/virt_release.h>
+#include "pone_time.h"
+
 lfrwq_t *slice_que = NULL;
 lfrwq_t *slice_watch_que = NULL;
 slice_state_control_block *global_block = NULL;
@@ -498,6 +500,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					break;
 				}
 				else if(SLICE_ENQUE == cur_state){
+
+				unsigned long long time_begin;
 #if 0
 					page_addr = kmap_atomic(org_slice);
 					if(0 == is_virt_page_release(page_addr))
@@ -548,8 +552,10 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					
 #if 1
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
-						
+						time_begin = rdtsc();	
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
+							PONE_TIMEPOINT_SET(slice_protect_ok,(rdtsc()- time_begin));
+							time_begin = rdtsc();
 #if 1
 #ifdef SLICE_OP_CLUSTER_QUE
 							if(-1 ==  lfrwq_in_cluster_watch_que(data,smp_processor_id()/2))
@@ -561,8 +567,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							}
 							else
 							{
+								PONE_TIMEPOINT_SET(slice_in_watch_que,(rdtsc()- time_begin));
 								atomic64_add(1,(atomic64_t*)&slice_in_watch_que_ok);
 								ret = 0;
+								
+								
 								break;
 							}
 #else
@@ -620,6 +629,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
         case SLICE_OUT_WATCH_QUE:
 		{    
 			void *page_addr = NULL;
+			unsigned long long time_begin = 0;
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -651,6 +661,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						kunmap_atomic(page_addr);
 					}
 #endif
+					time_begin = rdtsc();
 					result = insert_sd_tree(slice_idx);
 					if(NULL == result){
 						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
@@ -661,6 +672,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					}
 						
 					if(result == org_slice){
+						PONE_TIMEPOINT_SET(slice_insert_tree,(rdtsc() - time_begin));
 						if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_FIX)){
 							atomic64_add(1,(atomic64_t*)&slice_new_insert_num);
 							//printk("slice_idx is new insert ok\r\n");
@@ -675,8 +687,12 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					}
 					else{
 						//printk("slice_idx is same to new_slice %lld,%lld\r\n",slice_idx,pone->slice_idx);
+						
+						PONE_TIMEPOINT_SET(slice_merge_tree,(rdtsc() - time_begin));
+						time_begin = rdtsc();
 						if(SLICE_OK == change_reverse_ref(slice_idx,page_to_pfn(result)))
 						{
+							PONE_TIMEPOINT_SET(slice_changeref_ok,(rdtsc() - time_begin));
 							atomic64_add(1,(atomic64_t*)&slice_merge_num);
 							while(0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_IDLE));
 							put_page(org_slice);
@@ -812,6 +828,7 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader,int op)
 	int process_cnt = 0;
 	unsigned long long r_idx = 0;
 	int ret = -1;
+	unsigned long long time_begin =0;
 	if((!qh) || (!reader))
 	{
 		return -1;
@@ -877,11 +894,16 @@ int process_state_que(lfrwq_t *qh,lfrwq_reader *reader,int op)
 				
 				if(op  == 1)
                 {
+					time_begin = rdtsc();
                     process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_QUE,msg,-1);
-                }
+					PONE_TIMEPOINT_SET(slice_out_que,(rdtsc()-time_begin));
+					
+				}
                 else if(op == 2)
                 {
+					time_begin = rdtsc();
                     process_slice_state(page_to_pfn((struct page*)(msg)),SLICE_OUT_WATCH_QUE,msg,-1);
+					PONE_TIMEPOINT_SET(slice_out_watch_que,(rdtsc()-time_begin));
                 }
 				else if(op == 3)
 				{

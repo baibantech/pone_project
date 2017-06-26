@@ -22,6 +22,7 @@
 #include "vector.h"
 #include "chunk.h"
 #include "splitter_adp.h"
+#include "pone_time.h"
 struct timer_list slice_merge_timer = {0};
 extern unsigned long long slice_file_watch_chg;
 extern unsigned long long slice_file_fix_chg;
@@ -148,7 +149,7 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	int err = -1;
 	unsigned long mmun_start;	/* For mmu_notifiers */
 	unsigned long mmun_end;		/* For mmu_notifiers */
-	
+	unsigned long long 	time_begin = 0;
 	BUG_ON(PageTransCompound(page));
 	addr = address;
 	
@@ -160,11 +161,12 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	{
 		return -1;
 	}
-
+	time_begin = rdtsc();
 	mmun_start = addr;
 	mmun_end   = addr + PAGE_SIZE;
 	mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
-
+	
+	PONE_TIMEPOINT_SET(slice_mm_notify_start,(rdtsc()-time_begin));
 	ptep = __page_try_check_address(page, mm, addr, &ptl, 0);
 	if (!ptep)
 	{
@@ -198,13 +200,16 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 		}
 		entry = pte_mkclean(pte_wrprotect(entry));
 		set_pte_at_notify(mm, addr, ptep, entry);
+		PONE_TIMEPOINT_SET(slice_protect_func,(rdtsc()-time_begin));
 	}
 	err = 0;
 
 out_unlock:
 	pte_unmap_unlock(ptep, ptl);
 out_mn:
+	time_begin = rdtsc();
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+	PONE_TIMEPOINT_SET(slice_mm_notify_end,(rdtsc()-time_begin));
 	return err;
 }
 #endif
@@ -405,14 +410,17 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 	unsigned long mmun_start;	/* For mmu_notifiers */
 	unsigned long mmun_end;		/* For mmu_notifiers */
     struct page *new_page = arg;
+	unsigned long long time_begin = 0;
 	pte_t entry ;
 
 	if(PageAnon(page))
 	{
+		time_begin = rdtsc();
 		mmun_start = addr;
 		mmun_end   = addr + PAGE_SIZE;
 		mmu_notifier_invalidate_range_start(mm, mmun_start, mmun_end);
-
+		PONE_TIMEPOINT_SET(slice_changeref_start,(rdtsc()-time_begin));	
+		
 		ptep = __page_try_check_address(page, mm, addr, &ptl, 0);
 		if (!ptep)
 		{	
@@ -452,10 +460,13 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 		
 		put_page(page);
 		err = 0;	
+		PONE_TIMEPOINT_SET(slice_changeref_func,(rdtsc()-time_begin));	
 		out_unlock:
 			pte_unmap_unlock(ptep, ptl);
 		out_mn:
+			time_begin = rdtsc();
 			mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
+			PONE_TIMEPOINT_SET(slice_changeref_end,(rdtsc()-time_begin));	
 			return err;
 
 	}
