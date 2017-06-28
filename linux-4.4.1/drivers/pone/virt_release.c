@@ -73,12 +73,10 @@ int virt_mark_page_release(struct page *page)
 		return -1;
 	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_begin);
-	//printk("guset mem pool %p\r\n",guest_mem_pool);	
 	pool_id = guest_mem_pool->pool_id;
 	alloc_id = atomic64_add_return(1,(atomic64_t*)&guest_mem_pool->alloc_idx)-1;
 	idx = alloc_id%guest_mem_pool->desc_max;
 	state = guest_mem_pool->desc[idx];
-	//printk("pool id %d  alloc_id %lld  state %lld\r\n",pool_id,alloc_id,state);
 	
 	mark =kmap_atomic(page);
 	if(0 == state)
@@ -96,7 +94,9 @@ int virt_mark_page_release(struct page *page)
 		}
 		mark->pool_id = pool_id;
 		mark->alloc_id = idx;
+		barrier();
 		strcpy(mark->desc,guest_mem_pool->mem_ind);
+		barrier();
 		kunmap_atomic(mark);
 
 		atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_r_end);
@@ -106,7 +106,9 @@ int virt_mark_page_release(struct page *page)
 	{
 		mark->pool_id = MEM_POOL_MAX +1;
 		mark->alloc_id = guest_mem_pool->desc_max +1;
+		barrier();
 		strcpy(mark->desc,guest_mem_pool->mem_ind);
+		barrier();
 		kunmap_atomic(mark);
 	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_err_state);
@@ -121,8 +123,8 @@ int virt_mark_page_alloc(struct page *page)
 	unsigned long long alloc_id;
 	unsigned long long state;
 	unsigned long long idx ;
-	struct virt_release_mark *mark ;
-	
+	volatile struct virt_release_mark *mark ;
+		
 	if(!guest_mem_pool)
 	{
 		return 0;
@@ -143,23 +145,23 @@ int virt_mark_page_alloc(struct page *page)
 				{
 					if(state == atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],state,0))
 					{
-						memset(mark,0,sizeof(struct virt_release_mark));
-						kunmap_atomic(mark);
 						atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_ok);
 						atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
-						return 0;
 					}
 					else
 					{
-						
 						while(mark->desc[0] != '0')
 						{
-
+							barrier();
 						}
 					}
 				}
 			}
 		}
+		memset(mark,0,sizeof(struct virt_release_mark));
+		barrier();
+		kunmap_atomic(mark);
+		return 0;
 	}
 	else
 	{
@@ -380,6 +382,10 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	pool->hva = hva;
 	for(i = 0; i < MEM_POOL_MAX ; i++)
 	{
+		if(0 == i)
+		{
+			continue;
+		}
 		if(mem_pool_addr[i] != 0)
 		{
 			continue;
@@ -488,6 +494,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	alloc_id = mark->alloc_id;
 	if(pool_id > MEM_POOL_MAX)
 	{
+		if(pool_id != MEM_POOL_MAX +1)
 		printk("virt mem error in line%d\r\n ",__LINE__);
 		return -1;
 	}
