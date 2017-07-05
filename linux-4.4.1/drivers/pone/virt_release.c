@@ -22,13 +22,17 @@ extern int virt_mem_pool_len;
 
 EXPORT_SYMBOL(release_merge_page);
 
-int page_recycle_enable = 0;
-
-EXPORT_SYMBOL(page_recycle_enable);
-
 struct virt_mem_pool *guest_mem_pool = NULL;
 
 EXPORT_SYMBOL(guest_mem_pool);
+
+
+int guest_page_clear_ok = 0;
+EXPORT_SYMBOL(guest_page_clear_ok);
+
+int guest_page_no_need_clear = 0; 
+EXPORT_SYMBOL(guest_page_no_need_clear);
+
 
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
 unsigned long mark_release_count= 0;
@@ -69,6 +73,7 @@ int virt_mark_page_release(struct page *page)
 	{
 #ifdef GUEST_KERNEL
 		clear_highpage(page);
+		set_guest_page_clear_ok();
 #endif
 		return -1;
 	}
@@ -165,12 +170,15 @@ int virt_mark_page_alloc(struct page *page)
 	}
 	else
 	{
-		void *page_mem = kmap_atomic(release_merge_page);
-		if(0 != memcmp(mark,page_mem,PAGE_SIZE))
+		if(guest_page_no_need_clear)
 		{
-			atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_conflict);
+			void *page_mem = kmap_atomic(release_merge_page);
+			if(0 != memcmp(mark,page_mem,PAGE_SIZE))
+			{
+				atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_conflict);
+			}
+			kunmap_atomic(page_mem);
 		}
-		kunmap_atomic(page_mem);
 	}
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_alloc_err_state);
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_end);
@@ -202,7 +210,10 @@ int virt_mem_guest_init(void)
     init_guest_mem_pool(ptr,virt_mem_pool_len); 
     print_virt_mem_pool(ptr);
     iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
-    print_virt_mem_pool(ptr);
+	print_virt_mem_pool(ptr);
+	if(guest_page_clear_ok)
+		guest_page_no_need_clear  = 1;
+	barrier();	
 	guest_mem_pool = ptr;
 
     return 0;

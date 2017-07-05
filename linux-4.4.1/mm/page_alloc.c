@@ -1414,7 +1414,16 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 	kasan_alloc_pages(page, order);
 
 #ifdef CONFIG_PONE_MODULE
-	if(0 == ret)	
+	if(guest_page_no_need_clear)
+	{
+		if(0 == ret)	
+		{
+			if (gfp_flags & __GFP_ZERO)
+			for (i = 0; i < (1 << order); i++)
+				clear_highpage(page + i);
+		}
+	}
+	else
 	{
 		if (gfp_flags & __GFP_ZERO)
 		for (i = 0; i < (1 << order); i++)

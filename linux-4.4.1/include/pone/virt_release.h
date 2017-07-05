@@ -52,6 +52,16 @@ struct virt_release_mark
 	int pool_id;
 	unsigned long long alloc_id;
 };
+
+extern int guest_page_clear_ok;
+extern int guest_page_no_need_clear;
+
+static inline void set_guest_page_clear_ok(void)
+{
+	if(!guest_page_clear_ok)
+		guest_page_clear_ok = 1;
+}
+
 extern struct virt_mem_pool   *mem_pool_addr[MEM_POOL_MAX] ;
 
 extern int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct task_struct *task);
