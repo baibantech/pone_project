@@ -361,14 +361,19 @@ get_id_start:
 
     while(1)
     {
-        if(cur_vec.type == SPT_VEC_DATA)
-        {
-            return cur_vec.rd;
-        }
-        else if(cur_vec.type == SPT_VEC_RIGHT)
+        if(cur_vec.type == SPT_VEC_RIGHT)
         {
             pnext = (spt_vec *)vec_id_2_ptr(pclst,cur_vec.rd);
             next_vec.val = pnext->val;
+            if(next_vec.status == SPT_VEC_VALID
+                && next_vec.type != SPT_VEC_SIGNPOST
+                && next_vec.down != SPT_NULL)
+            {
+                ppre = pcur;
+                pcur = pnext;
+                cur_vec.val = next_vec.val;
+                continue;
+            }
             if(next_vec.status == SPT_VEC_RAW)
             {
                 smp_mb();
@@ -392,6 +397,8 @@ get_id_start:
                     if(next_vec.down == SPT_NULL)
                     {
                         spt_set_data_flag(tmp_vec);
+                        if(next_vec.rd == SPT_NULL && pcur!=pclst->pstart)
+                            tmp_vec.status = SPT_VEC_INVALID;
                     }
                     else
                     {
@@ -409,30 +416,31 @@ get_id_start:
                     ret = vec_free_to_buf(pclst, vecid, g_thrd_id);
                     if(ret != SPT_OK)
                         return ret;
-                    continue;
                 }
-                else//delete fail
+                cur_vec.val = pcur->val;
+                if(cur_vec.status != SPT_VEC_VALID)
                 {
-                    cur_vec.val = pcur->val;
-                    if(cur_vec.status == SPT_VEC_INVALID)
+                #if 0
+                    if(ppre == NULL)
+                        goto get_id_start;
+                    else
                     {
-                        if(ppre == NULL)
+                        cur_vec.val = ppre->val;
+                        if(cur_vec.status == SPT_VEC_VALID)
                             goto get_id_start;
                         else
                         {
-                            cur_vec.val = ppre->val;
-                            if(cur_vec.status == SPT_VEC_INVALID)
-                                goto get_id_start;
-                            else
-                            {
-                                pcur = ppre;
-                                ppre = NULL;
-                                continue;
-                            }
+                            pcur = ppre;
+                            ppre = NULL;
+                            continue;
                         }
                     }
+
                     continue;
+                #endif
+                    goto get_id_start;
                 }
+                continue;
             }
             
             //对于一个向量的右结点:
@@ -476,14 +484,15 @@ get_id_start:
                     atomic64_cmpxchg((atomic64_t *)pnext, next_vec.val, tmp_vec.val);
                     //set invalid succ or not, refind from cur
                     cur_vec.val = pcur->val;
-                    if((cur_vec.status == SPT_VEC_INVALID))
+                    if((cur_vec.status != SPT_VEC_VALID))
                     {
+                    #if 0
                         if(ppre == NULL)
                             goto get_id_start;
                         else
                         {
                             cur_vec.val = ppre->val;
-                            if(cur_vec.status == SPT_VEC_INVALID)
+                            if(cur_vec.status != SPT_VEC_VALID)
                                 goto get_id_start;
                             else
                             {
@@ -492,10 +501,16 @@ get_id_start:
                                 continue;
                             }
                         }
+                    #endif
+                        goto get_id_start;
                     }
                     continue;
                 }
             }
+        }
+        else if(cur_vec.type == SPT_VEC_DATA)
+        {
+            return cur_vec.rd;
         }
         //cur是路标，方向肯定是right,遍历过程中不会对方向是down的路标调用此接口
         else
@@ -1460,15 +1475,20 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
 void refresh_db_hang_vec(cluster_head_t *pclst, spt_vec *pdata_vec, spt_dh *pdel_dh)
 {
     int down_data;
-    spt_vec *pdown_vec;
+    spt_vec *pdown_vec, *pvec;
     spt_dh *pdown_dh;
     spt_dh_ext *pext_h, *pdown_ext_h;
     if(pdata_vec->down == SPT_NULL)
     {
         return;
     }
-    pdown_vec = (spt_vec *)vec_id_2_ptr(pclst, pdata_vec->down);
-    down_data = get_data_id(pclst,pdown_vec);//单线程，必定成功
+    pvec = (spt_vec *)vec_id_2_ptr(pclst, pdata_vec->down);
+    while(pvec->type != SPT_VEC_DATA)
+    {
+        pvec = (spt_vec *)vec_id_2_ptr(pclst, pvec->rd);
+    }
+    //down_data = get_data_id(pclst,pdown_vec);//单线程，必定成功
+    down_data = pvec->rd;
     pdown_dh = (spt_dh *)db_id_2_ptr(pclst, down_data);
     pdown_ext_h = (spt_dh_ext *)pdown_dh->pdata;
     pext_h = (spt_dh_ext *)pdel_dh->pdata;
@@ -1621,11 +1641,15 @@ spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
         else
         {            
             cur_data = cur_vec.rd;
-            pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
-            psort->array[psort->idx] = pdh->pdata;
-            psort->idx = (psort->idx+1)%psort->size;
-            psort->cnt++;
-            //debug_pdh_data_print(pclst, pdh);
+            if(cur_data != SPT_NULL)
+            {
+                pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                psort->array[psort->idx] = pdh->pdata;
+                psort->idx = (psort->idx+1)%psort->size;
+                psort->cnt++;
+                //debug_pdh_data_print(pclst, pdh);            
+            }
+
             if(index == 0)
             {
                 break;
@@ -1767,7 +1791,7 @@ spt_divided_info *spt_divided_info_init(spt_sort_info *psort, int dvd_times,
 int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
 {
     int loop, dataid, ins_dvb_id, ret;
-    int move_time = 5;
+    int move_time = SPT_DVD_MOVE_TIMES;
 //    int move_per_cnt = 100;
     spt_sort_info *psort;
     spt_divided_info *pdinfo;
@@ -2075,7 +2099,7 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     u64 startbit, endbit, len, fs_pos, signpost;
     int va_old, va_new;
     u8 direction;
-    int ret = SPT_NOT_FOUND;
+    int ret;
     int retb, dataid_confirm, cmp_invalid;
     vec_cmpret_t cmpres;
     insert_info_t st_insert_info;
@@ -2109,6 +2133,7 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
             return ret;
         }
     }
+    ret = SPT_NOT_FOUND;
     op = pqinfo->op;
 
     atomic64_add(1,(atomic64_t *)&g_dbg_info.find_data);
@@ -2119,7 +2144,7 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     else
         prdata = pqinfo->get_key(pqinfo->data);
     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
-    map_st[g_thrd_id].idx++;
+    map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
     map_cnt[g_thrd_id]++;
     if(pqinfo->get_key_end == NULL)
     {
@@ -2179,8 +2204,9 @@ refind_forward:
             {
                 finish_key_cb(prdata);
                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                unmap_st[g_thrd_id].idx++;
+                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                 unmap_cnt[g_thrd_id]++;
+                spt_debug("@@@@@@@\r\n");
                 return SPT_DO_AGAIN;
             }
             else
@@ -2194,12 +2220,11 @@ refind_forward:
     {
         if(pcur == pqinfo->pstart_vec)
         {
-            
             finish_key_cb(prdata);
             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-            unmap_st[g_thrd_id].idx++;
+            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
             unmap_cnt[g_thrd_id]++;
-            
+            spt_debug("@@@@@@@\r\n");
             return SPT_DO_AGAIN;
         }
         else
@@ -2213,7 +2238,7 @@ refind_forward:
         cur_data = SPT_INVALID;
         pclst->get_key_in_tree_end(pcur_data);
         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-        unmap_st[g_thrd_id].idx++;
+        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
         unmap_cnt[g_thrd_id]++;
     }
 
@@ -2231,7 +2256,7 @@ refind_forward:
                 {
                     pclst->get_key_in_tree_end(pcur_data);
                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                    unmap_st[g_thrd_id].idx++;
+                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                     unmap_cnt[g_thrd_id]++;
                     if(cur_vec.rd != cur_data)
                     {
@@ -2247,17 +2272,16 @@ refind_forward:
                     pcur_data = pclst->get_key_in_tree( pdh->pdata);
                     
                     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
-                    map_st[g_thrd_id].idx++;
+                    map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
                     map_cnt[g_thrd_id]++;
                 }
                 else if(cur_data == SPT_NULL)
                 {
                     switch(op){
                     case SPT_OP_FIND:
-                        
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         return ret;
@@ -2267,37 +2291,34 @@ refind_forward:
                         ret = do_insert_first_set(pclst, &st_insert_info, pdata);
                         if(ret == SPT_DO_AGAIN)
                         {
-							cur_data = SPT_INVALID;
+                            cur_data = SPT_INVALID;
                             goto refind_start;
                         }
                         else if(ret >= 0)
                         {
                             pqinfo->db_id = ret;
                             pqinfo->data = 0;
-                            
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return SPT_OK;
                         }
                         else
                         {
-                            
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
-                        
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         return ret;
@@ -2326,7 +2347,7 @@ refind_forward:
                         smp_mb();
                         pcur_data = pclst->get_key_in_tree(pdh->pdata);
                         map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
-                        map_st[g_thrd_id].idx++;
+                        map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
                         map_cnt[g_thrd_id]++;
                     }
                     else if(cur_data == SPT_DO_AGAIN)
@@ -2344,7 +2365,7 @@ refind_forward:
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
     					if(ret == SPT_OK)
     						return ret;
@@ -2377,10 +2398,14 @@ refind_forward:
                         if(next_vec.down == SPT_NULL)
                         {
                             spt_set_data_flag(tmp_vec);
+                            if(next_vec.rd == SPT_NULL && pcur!=pclst->pstart)
+                                tmp_vec.status = SPT_VEC_INVALID;
                         }
                         else
                         {
                             tmp_vec.rd = next_vec.down;
+                            //简化逻辑，最后再触发重查
+                            #if 0 
                             if(cur_data != SPT_INVALID)
                             {
                                 //之前的比较无效，删除结点后重查
@@ -2391,9 +2416,10 @@ refind_forward:
                                 cur_data = SPT_INVALID;
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
+                            #endif
                         }                
                     }
                     else
@@ -2409,14 +2435,14 @@ refind_forward:
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             if(ret == SPT_OK)
@@ -2425,13 +2451,15 @@ refind_forward:
                         }
                         ///TODO:取新值后再continue
                     }
+                    #if 0
                     if(cmp_invalid)
                     {
                         cmp_invalid = 0;
                         goto refind_start;
                     }
+                    #endif
                     cur_vec.val = pcur->val;
-                    if(cur_vec.status == SPT_VEC_INVALID)
+                    if(cur_vec.status != SPT_VEC_VALID)
                     {
                         pcur = ppre;
                         goto refind_forward;
@@ -2469,7 +2497,7 @@ refind_forward:
                         atomic64_cmpxchg((atomic64_t *)pnext, next_vec.val, tmp_vec.val);
                         //set invalid succ or not, refind from cur
                         cur_vec.val = pcur->val;
-                        if((cur_vec.status == SPT_VEC_INVALID))
+                        if((cur_vec.status != SPT_VEC_VALID))
                         {
                             pcur = ppre;
                             goto refind_forward;
@@ -2532,7 +2560,7 @@ refind_forward:
                                     cur_data = SPT_INVALID;
                                     pclst->get_key_in_tree_end(pcur_data);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                 }
                             }                
@@ -2551,13 +2579,12 @@ refind_forward:
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                 }                            
-                                
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 if(ret == SPT_OK)
@@ -2646,17 +2673,16 @@ refind_forward:
                             retb = vec_free_to_buf(pclst, vecid, g_thrd_id);
                             if(retb != SPT_OK)
                             {
-                                
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                 }
                                 if(ret == SPT_OK)
@@ -2694,13 +2720,13 @@ refind_forward:
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return ret;
@@ -2720,14 +2746,14 @@ refind_forward:
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                 }
                                 return SPT_OK;
@@ -2737,14 +2763,14 @@ refind_forward:
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 if(cur_data != SPT_INVALID)
                                 {
                                     pclst->get_key_in_tree_end(pcur_data);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                 }
                                 return ret;
@@ -2754,14 +2780,14 @@ refind_forward:
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             return ret;
@@ -2781,7 +2807,7 @@ refind_forward:
                     smp_mb();
                     pcur_data = pclst->get_key_in_tree(pdh->pdata);
                     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
-                    map_st[g_thrd_id].idx++;
+                    map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
                     map_cnt[g_thrd_id]++;
                 }
                 else if(cur_data == SPT_DO_AGAIN)
@@ -2793,10 +2819,9 @@ refind_forward:
                 {
                     switch(op){
                     case SPT_OP_FIND:
-                        
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         return ret;
@@ -2816,7 +2841,7 @@ refind_forward:
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return SPT_OK;
@@ -2826,7 +2851,7 @@ refind_forward:
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return ret;
@@ -2836,7 +2861,7 @@ refind_forward:
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         return ret;
@@ -2851,7 +2876,7 @@ refind_forward:
                     
                     finish_key_cb(prdata);
                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                    unmap_st[g_thrd_id].idx++;
+                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                     unmap_cnt[g_thrd_id]++;
 					if(ret == SPT_OK)
 						return ret;
@@ -2907,14 +2932,14 @@ refind_forward:
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
@@ -2947,14 +2972,14 @@ refind_forward:
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             return SPT_OK;
@@ -2964,21 +2989,21 @@ refind_forward:
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
-
+#if 0
 spt_debug("=====================================================\r\n");
 spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
             cmpres.pos, cmpres.smallfs, cur_vec.val);
@@ -2995,18 +3020,18 @@ for(i = 0 ; i < 32 ;i++)
 
 }
 spt_debug("=====================================================\r\n");
-
+#endif
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
@@ -3028,14 +3053,14 @@ spt_debug("=====================================================\r\n");
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
@@ -3065,14 +3090,14 @@ spt_debug("=====================================================\r\n");
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             return SPT_OK;
@@ -3082,20 +3107,21 @@ spt_debug("=====================================================\r\n");
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             if(cur_data != SPT_INVALID)
                             {
                                 pclst->get_key_in_tree_end(pcur_data);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                             }
                             return ret;
                         }
                         break;
                     case SPT_OP_DELETE:
+                        #if 0
                         spt_debug("=====================================================\r\n");
                         spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
                                     cmpres.pos, cmpres.smallfs, cur_vec.val);
@@ -3116,16 +3142,17 @@ spt_debug("=====================================================\r\n");
                         
                         }
                         spt_debug("=====================================================\r\n");
+                        #endif
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         if(cur_data != SPT_INVALID)
                         {
                             pclst->get_key_in_tree_end(pcur_data);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                         }
                         return ret;
@@ -3144,7 +3171,7 @@ spt_debug("=====================================================\r\n");
                 cur_data = SPT_INVALID;
                 pclst->get_key_in_tree_end(pcur_data);
                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                unmap_st[g_thrd_id].idx++;
+                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                 unmap_cnt[g_thrd_id]++;
             }
             while(fs_pos > startbit)
@@ -3183,7 +3210,7 @@ spt_debug("=====================================================\r\n");
                                     
                                     finish_key_cb(prdata);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
 									if(ret == SPT_OK)
 										return ret;
@@ -3200,7 +3227,7 @@ spt_debug("=====================================================\r\n");
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return ret;
@@ -3222,7 +3249,7 @@ spt_debug("=====================================================\r\n");
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 return SPT_OK;
@@ -3232,7 +3259,7 @@ spt_debug("=====================================================\r\n");
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 return ret;
@@ -3242,7 +3269,7 @@ spt_debug("=====================================================\r\n");
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return ret;
@@ -3283,25 +3310,23 @@ spt_debug("=====================================================\r\n");
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 if(ret == SPT_OK)
                                     return ret;
                                 return retb;
                             }
-                            continue;
                         }
-                        else//delete fail
+
+                        cur_vec.val = pcur->val;
+                        if(cur_vec.status != SPT_VEC_VALID)
                         {
-                            cur_vec.val = pcur->val;
-                            if(cur_vec.status == SPT_VEC_INVALID)
-                            {
-                                pcur = ppre;
-                                goto refind_forward;
-                            }
-                            continue;
+                            pcur = ppre;
+                            goto refind_forward;
                         }
+                        continue;
+
                     }
                     //对于一个向量，下结点为尾路标是不合法的。
                     if(next_vec.type == SPT_VEC_SIGNPOST)
@@ -3376,7 +3401,7 @@ spt_debug("=====================================================\r\n");
                                         cur_data = SPT_INVALID;
                                         pclst->get_key_in_tree_end(pcur_data);
                                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                        unmap_st[g_thrd_id].idx++;
+                                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                         unmap_cnt[g_thrd_id]++;
                                     }
                                 }                
@@ -3394,7 +3419,7 @@ spt_debug("=====================================================\r\n");
                                     
                                     finish_key_cb(prdata);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                     
                                     if(ret == SPT_OK)
@@ -3433,7 +3458,7 @@ spt_debug("=====================================================\r\n");
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 return ret;
@@ -3455,7 +3480,7 @@ spt_debug("=====================================================\r\n");
                                     
                                     finish_key_cb(prdata);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                     
                                     return SPT_OK;
@@ -3465,7 +3490,7 @@ spt_debug("=====================================================\r\n");
                                     
                                     finish_key_cb(prdata);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                     
                                     return ret;
@@ -3475,7 +3500,7 @@ spt_debug("=====================================================\r\n");
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
                                 
                                 return ret;
@@ -3528,7 +3553,7 @@ spt_debug("=====================================================\r\n");
                                     
                                     finish_key_cb(prdata);
                                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                    unmap_st[g_thrd_id].idx++;
+                                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                     unmap_cnt[g_thrd_id]++;
                                     
                                     if(ret == SPT_OK)
@@ -3613,7 +3638,7 @@ spt_debug("=====================================================\r\n");
                                 
                                 finish_key_cb(prdata);
                                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                                unmap_st[g_thrd_id].idx++;
+                                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                                 unmap_cnt[g_thrd_id]++;
 								if(ret == SPT_OK)
 									return ret;
@@ -3630,7 +3655,7 @@ spt_debug("=====================================================\r\n");
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         return ret;
@@ -3652,7 +3677,7 @@ spt_debug("=====================================================\r\n");
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return SPT_OK;
@@ -3662,7 +3687,7 @@ spt_debug("=====================================================\r\n");
                             
                             finish_key_cb(prdata);
                             unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                            unmap_st[g_thrd_id].idx++;
+                            unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                             unmap_cnt[g_thrd_id]++;
                             
                             return ret;
@@ -3672,7 +3697,7 @@ spt_debug("=====================================================\r\n");
                         
                         finish_key_cb(prdata);
                         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                        unmap_st[g_thrd_id].idx++;
+                        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                         unmap_cnt[g_thrd_id]++;
                         
                         return ret;
@@ -3716,7 +3741,7 @@ spt_debug("=====================================================\r\n");
     {
         pclst->get_key_in_tree_end(pcur_data);
         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-        unmap_st[g_thrd_id].idx++;
+        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
         unmap_cnt[g_thrd_id]++;
     }
     //pdh = (spt_dh *)(pcur_data - sizeof(spt_dh));
@@ -3732,7 +3757,7 @@ spt_debug("=====================================================\r\n");
         
         finish_key_cb(prdata);
         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-        unmap_st[g_thrd_id].idx++;
+        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
         unmap_cnt[g_thrd_id]++;
         
         return ret;
@@ -3761,7 +3786,7 @@ spt_debug("=====================================================\r\n");
         
         finish_key_cb(prdata);
         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-        unmap_st[g_thrd_id].idx++;
+        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
         unmap_cnt[g_thrd_id]++;
         
         return ret;
@@ -3775,7 +3800,7 @@ spt_debug("=====================================================\r\n");
                 
                 finish_key_cb(prdata);
                 unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                unmap_st[g_thrd_id].idx++;
+                unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                 unmap_cnt[g_thrd_id]++;
                 
                 return SPT_NOT_FOUND;
@@ -3794,10 +3819,10 @@ spt_debug("=====================================================\r\n");
         //pqinfo->ref_cnt = va_new;
         if(va_old == 1)
         {
+            tmp_vec.val = cur_vec.val;
+            tmp_vec.rd = SPT_NULL;
             if(pcur == (spt_vec *)vec_id_2_ptr(pclst,pclst->vec_head))
             {
-                tmp_vec.val = cur_vec.val;
-                tmp_vec.rd = SPT_NULL;
                 if(cur_vec.val == atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val))//invalidate succ
                 {
                     spt_set_data_free_flag(pdh, pqinfo->free_flag);
@@ -3805,7 +3830,7 @@ spt_debug("=====================================================\r\n");
                     
                     finish_key_cb(prdata);
                     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-                    unmap_st[g_thrd_id].idx++;
+                    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
                     unmap_cnt[g_thrd_id]++;
                     
                     pqinfo->ref_cnt = 0;
@@ -3814,12 +3839,19 @@ spt_debug("=====================================================\r\n");
                 else
                 {
                     cur_data = SPT_INVALID;
-                    atomic_add_return(1,(atomic_t *)&pdh->ref);
+                    //atomic_add_return(1,(atomic_t *)&pdh->ref);
+                    while(1)
+                    {
+                        va_old = pdh->ref;
+                        va_new = va_old+1;
+                        if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                            break;
+                    }
+                    
                     ret = SPT_NOT_FOUND;
                     goto refind_start;
                 }
             }
-            tmp_vec.val = cur_vec.val;
             tmp_vec.status = SPT_VEC_INVALID;
             if(cur_vec.val == atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val))//invalidate succ
             {
@@ -3835,7 +3867,14 @@ spt_debug("=====================================================\r\n");
             }
             else
             {
-                atomic_add_return(1,(atomic_t *)&pdh->ref);
+                //atomic_add_return(1,(atomic_t *)&pdh->ref);
+                while(1)
+                {
+                    va_old = pdh->ref;
+                    va_new = va_old+1;
+                    if(va_old == atomic_cmpxchg((atomic_t *)&pdh->ref, va_old,va_new))
+                        break;
+                }                
                 cur_data = SPT_INVALID;
                 ret = SPT_NOT_FOUND;
                 goto refind_start;
@@ -3844,7 +3883,7 @@ spt_debug("=====================================================\r\n");
         
         finish_key_cb(prdata);
         unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-        unmap_st[g_thrd_id].idx++;
+        unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
         unmap_cnt[g_thrd_id]++;
         
         pqinfo->ref_cnt = va_new;
@@ -3856,7 +3895,7 @@ spt_debug("=====================================================\r\n");
     
     finish_key_cb(prdata);
     unmap_st[g_thrd_id].line[unmap_st[g_thrd_id].idx] = __LINE__;
-    unmap_st[g_thrd_id].idx++;
+    unmap_st[g_thrd_id].idx = (unmap_st[g_thrd_id].idx+1)&0xffff;
     unmap_cnt[g_thrd_id]++;
     
     return SPT_ERR;
@@ -3932,12 +3971,14 @@ int do_delete_data_no_free(cluster_head_t *pclst,
 
 cluster_head_t *find_next_cluster(cluster_head_t *pclst, char *pdata)
 {
-    query_info_t qinfo = {0};
+    query_info_t qinfo;
     int ret;
     spt_dh *pdh;
     spt_dh_ext *pdext_h;
     spt_vec *phang_vec, *pvec;
-    
+
+refind_next:
+    memset(&qinfo,0,sizeof(query_info_t));
     qinfo.op = SPT_OP_FIND;
     qinfo.signpost = 0;
     qinfo.pstart_vec = pclst->pstart;
@@ -3966,6 +4007,8 @@ cluster_head_t *find_next_cluster(cluster_head_t *pclst, char *pdata)
             {
                 pvec = (spt_vec *)vec_id_2_ptr(pclst, pvec->rd);
                 ret = find_lowest_data(pclst, pvec);
+                if(ret == SPT_NULL)
+                    goto refind_next;
                 pdh = (spt_dh *)db_id_2_ptr(pclst, ret);
                 pdext_h = (spt_dh_ext *)pdh->pdata;
                 return pdext_h->plower_clst;
@@ -3976,6 +4019,8 @@ cluster_head_t *find_next_cluster(cluster_head_t *pclst, char *pdata)
             phang_vec = (spt_vec *)vec_id_2_ptr(pclst, pdext_h->hang_vec);
             if(phang_vec->type == SPT_VEC_DATA)
             {
+                if(phang_vec->rd == SPT_NULL)
+                    goto refind_next;            
                 pdh = (spt_dh *)db_id_2_ptr(pclst, phang_vec->rd);
                 pdext_h = (spt_dh_ext *)pdh->pdata;
                 return pdext_h->plower_clst;
@@ -3984,6 +4029,8 @@ cluster_head_t *find_next_cluster(cluster_head_t *pclst, char *pdata)
             {
                 pvec = (spt_vec *)vec_id_2_ptr(pclst, phang_vec->rd);
                 ret = find_lowest_data(pclst, pvec);
+                if(ret == SPT_NULL)
+                    goto refind_next;            
                 pdh = (spt_dh *)db_id_2_ptr(pclst, ret);
                 pdext_h = (spt_dh_ext *)pdh->pdata;
                 return pdext_h->plower_clst;
@@ -6022,6 +6069,8 @@ int debug_statistic(cluster_head_t *pclst)
             //spt_bit_cpy(data, pcur_data, bit, DATA_BIT_MAX - bit);
             //此时data应该等于插入的某个数
             //debug_vec_print(&st_vec_f, cur_vecid);
+            spt_thread_start(g_thrd_id);
+            spt_thread_exit(g_thrd_id);
             if(pcur_data != NULL)//head->right为空时，pcur_data等于空
             {
 				//slice_data_cmp(pcur_data);    
@@ -6112,6 +6161,162 @@ int debug_statistic(cluster_head_t *pclst)
     return ref_total;
 }
 
+void debug_buf_free(cluster_head_t *pclst)
+{
+    spt_stack stack = {0};
+    spt_stack *pstack = &stack;
+    //u8 data[DATA_SIZE] = {0};
+    int cur_data, cur_vecid, i;
+    spt_vec *pcur;
+    spt_vec_f st_vec_f;
+    spt_dh *pdh;
+    char *pcur_data = NULL;
+    u64 signpost;
+    travl_info *pnode;
+    u32 ref_total, buf_vec_total, buf_data_total,data_total;
+    u32 lower_ref;
+    char *data;
+    cluster_head_t *plower_clst;
+
+    signpost = 0;
+    spt_stack_init(pstack, 1000);
+    cur_data = SPT_INVALID;
+
+    cur_vecid = pclst->vec_head;
+    pcur = (spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
+
+    debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+    if(pcur->down == SPT_NULL && pcur->rd == SPT_NULL)
+    {
+        debug_travl_stack_destroy(pstack);
+        return ;
+    }
+
+    cur_data = st_vec_f.data;
+    if(cur_data != SPT_NULL)
+    {
+        pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+        pcur_data = pdh->pdata;
+    }
+#if 0
+    if(st_vec_r.pos == 0)
+    {
+        printf("only one vec in this cluster\r\n");
+        debug_vec_print(&st_vec_r, cur_vec);
+        debug_data_print(pcur_data);
+        return;        
+    }
+#endif
+    debug_travl_stack_push(pstack,&st_vec_f, signpost);
+
+    while (1)
+    {
+        if(pcur->type != SPT_VEC_DATA)
+        {
+            cur_vecid = st_vec_f.right;
+            pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+            debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+            if(pcur->type == SPT_VEC_SIGNPOST)
+            {
+                signpost = st_vec_f.pos;
+                
+                cur_vecid = st_vec_f.right;
+                pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+                if(pcur->type == SPT_VEC_SIGNPOST)
+                {
+                    spt_debug("double signpost vec found!!\r\n");
+                    while(1);
+                }
+            }
+            debug_travl_stack_push(pstack,&st_vec_f, signpost);
+            #if 0
+            pos = st_vec_f.pos;
+            if(pos != 0)
+                spt_bit_cpy(data, pcur_data, bit, pos);
+            else
+                spt_bit_cpy(data, pcur_data, bit, DATA_BIT_MAX - bit);
+            bit += st_vec_r.pos;
+            #endif
+        }
+        else
+        {            
+            //debug_vec_print(&st_vec_r, cur_vec);
+            //单个数据遍历完
+            //spt_bit_cpy(data, pcur_data, bit, DATA_BIT_MAX - bit);
+            //此时data应该等于插入的某个数
+            //debug_vec_print(&st_vec_f, cur_vecid);
+            if(pcur_data != NULL)//head->right为空时，pcur_data等于空
+            {
+                #if 0
+                if(memcmp(data, pcur_data, DATA_SIZE)!=0)
+                {
+                    printf("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
+                }
+                #endif
+                //pdh = (spt_dh *)(pcur_data-sizeof(spt_dh));
+//                pdh->rank = rank;
+//                rank--;
+                data = get_real_data(pclst, pcur_data);
+                if(!pclst->is_bottom)
+                {
+                    plower_clst = ((spt_dh_ext *)pcur_data)->plower_clst;
+                    for(i=0; i<plower_clst->thrd_total; i++)
+                    {
+                        vec_buf_free(plower_clst, i);
+                        db_buf_free(plower_clst, i);
+                    }
+                    plower_clst->status = SPT_OK;
+                }
+            }
+            
+            if(spt_stack_empty(pstack))
+            {
+                break;
+            }
+            while(1)
+            {
+                pnode = debug_travl_stack_pop(pstack);
+                if(pnode == (travl_info *)-1)
+                {
+                    debug_travl_stack_destroy(pstack);
+                    return ;
+                }
+                signpost = pnode->signpost;
+                if(pnode->vec_f.down != SPT_NULL)
+                {
+                    cur_vecid = pnode->vec_f.down;
+                    pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                    debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, SPT_INVALID, SPT_DOWN);
+                    //debug_vec_print(&st_vec_f, cur_vecid);
+                    
+                    if(pcur->type == SPT_VEC_SIGNPOST)
+                    {
+                        signpost = st_vec_f.pos;
+                        cur_vecid = pnode->vec_f.down;
+                        pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                        debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, SPT_INVALID, SPT_DOWN);
+                        if(pcur->type == SPT_VEC_SIGNPOST)
+                        {
+                            spt_debug("double signpost vec found!!\r\n");
+                            while(1);
+                        }
+                    }
+                    cur_data = st_vec_f.data;
+                    pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                    pcur_data = pdh->pdata;
+                    ref_total += pdh->ref;
+                    debug_travl_stack_push(pstack,&st_vec_f, signpost);
+                    kfree(pnode);
+                    break;
+                }
+                kfree(pnode);
+            }
+        }
+    }
+    debug_travl_stack_destroy(pstack);
+    return ;
+}
 
 int debug_upper_delete(cluster_head_t *pclst, char *pdata)
 {

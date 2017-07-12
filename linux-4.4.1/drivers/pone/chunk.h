@@ -170,6 +170,9 @@ int fill_in_rsv_list_simple(cluster_head_t *pclst, int nr, int thread_id);
 void cluster_destroy(cluster_head_t *pclst);
 void free_data(char *p);
 void default_end_get_key(char *p);
+void vec_buf_free(cluster_head_t *pclst, int thread_id);
+void db_buf_free(cluster_head_t *pclst, int thread_id);
+
 
 void test_vec_alloc_n_times(cluster_head_t *pclst);
 void debug_data_print(char *pdata);
