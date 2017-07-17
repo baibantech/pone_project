@@ -246,6 +246,72 @@ int slice_que_resource_init(void)
     return 0;
 }
 
+void slice_mapcount_add_process(void *data)
+{
+	unsigned int nid;
+	unsigned long long slice_id;
+	int i = 0;
+	unsigned long long cur_state;
+	struct page *org_page = (struct page*)data;
+	unsigned long slice_idx = page_to_pfn(org_page);
+	struct page *result = NULL;	
+	if(!is_pone_init())
+	{
+		return;
+	}
+
+
+	nid = slice_idx_to_node(slice_idx);
+	slice_id = slice_nr_in_node(nid,slice_idx);
+	do{
+
+		barrier();
+		cur_state = get_slice_state(nid,slice_id);	
+		if(SLICE_NULL == cur_state)
+		{
+			break;
+		}
+		else if(SLICE_FIX == cur_state)
+		{
+			result = insert_sd_tree(slice_idx);
+			if(result != org_page)
+			{
+				printk("error in mapcount add proc line %d\r\n",__LINE__);	
+			}
+
+			if(SLICE_FIX != get_slice_state(nid ,slice_id))
+			{
+				printk("error in mapcount add proc line %d\r\n",__LINE__);	
+			}
+			break;
+		}
+		else if(SLICE_WATCH == cur_state)
+		{
+			if(0 == change_slice_state(nid ,slice_id,SLICE_WATCH,SLICE_CHG))
+			{
+				break;
+			}
+		}
+		else if(SLICE_ENQUE == cur_state)
+		{
+			if(0 == change_slice_state(nid ,slice_id,SLICE_ENQUE,SLICE_CHG))
+			{
+				break;
+			}
+		}
+		else if(SLICE_IDLE == cur_state)
+		{
+			printk("error in mapcount add proc line %d\r\n",__LINE__);	
+		}
+		else
+		{
+			/*slice_chg ,slice_volatile */
+			break;
+		}
+
+	}while(1);
+}
+
 unsigned long long slice_pre_fix_check_cnt = 0;
 void pre_fix_slice_check(void *data)
 {
@@ -278,7 +344,7 @@ void pre_fix_slice_check(void *data)
 		}
 		else if(SLICE_WATCH == cur_state)
 		{
-			if(0 == change_slice_state(nid ,slice_id,SLICE_WATCH,SLICE_WATCH_CHG))
+			if(0 == change_slice_state(nid ,slice_id,SLICE_WATCH,SLICE_CHG))
 			{
 				break;
 			}
@@ -318,11 +384,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
     {
         case SLICE_ALLOC:
 		{
-			/* data is the struct page* */
-			if(!slice_que_debug)
-			{
-				return 0;
-			}
 			atomic64_add(1,(atomic64_t*)&slice_alloc_num);
 			
 			slice_debug_area_insert(org_slice);
@@ -435,49 +496,9 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 
 		case SLICE_CHANGE:/*cow excption:reuse*/
 		{
-			do
-			{
-				/* slice state is fix or watch*/
-				cur_state = get_slice_state(nid,slice_id);
-				if(SLICE_WATCH == cur_state){
-					
-					printk("change watch status is err\r\n");
-					atomic64_add(1,(atomic64_t*)&slice_mem_watch_change);
-					if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_WATCH_CHG)){
-						break;
-					}
-				}    
-				else if(SLICE_FIX == cur_state){
-					
-					printk("change fix status is err\r\n");
-					if(atomic_read(&org_slice->_count) > 2)
-					{
-						printk("org_slice count is uper 2\r\n");
-					}
-
-					atomic64_add(1,(atomic64_t*)&slice_mem_fix_change);
-					if(0 == change_slice_state(nid ,slice_id,SLICE_FIX,SLICE_FIX))
-					{
-						printk("org_slice %p count %d,mapcount %d\r\n",org_slice,atomic_read(&org_slice->_count),atomic_read(&org_slice->_mapcount));
-						delete_sd_tree(slice_idx,SLICE_VOLATILE);			
-						if( 0 == change_slice_state(nid,slice_id,SLICE_FIX,SLICE_VOLATILE)){
-							
-							break;
-						}
-						printk("err in fix chg status\r\n");
-						break;
-					}
-					else
-					{
-						continue;
-					}
-				}
-				else{
-					break;
-				}
-			}while(1);
-			ret = 0;
-			break; 
+			if(get_slice_state_by_id(slice_idx)!= SLICE_NULL)
+			printk("change watch status is err\r\n");
+			break;	
 		}
         case SLICE_OUT_QUE:
 		{
@@ -488,10 +509,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 			{
 				cur_state = get_slice_state(nid,slice_id);
 				
-				if(0){
-					ret = 0;
-					break;
-				}	
 				if(SLICE_IDLE == cur_state){
 					/*page free by sys*/
 					free_slice(slice_idx);
@@ -549,7 +566,19 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					}
 #endif
 #endif
-					
+					if(0 != atomic_read(&org_slice->_mapcount))
+					{
+						if (0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+						{
+							add_slice_volatile_cnt(nid,slice_id);
+							break;
+						}
+						else
+						{
+							continue;
+						}
+					}
+
 #if 1
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						time_begin = rdtsc();	
@@ -614,7 +643,13 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					}
 #endif
 				}
-
+				else if(SLICE_CHG == cur_state){
+					
+					if(0 == change_slice_state(nid,slice_id,SLICE_CHG,SLICE_VOLATILE)){
+						ret = 0;
+						break;
+					}                        
+				}
 				else
 				{
 					printk("slice_state is %lld err in out que\r\n",cur_state);
@@ -645,6 +680,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 				else if (SLICE_WATCH == cur_state)
 				{
 					if(!atomic_inc_not_zero(&org_slice->_count))
+					{
+						continue;
+					}
+
+					if(0 != atomic_read(&org_slice->_mapcount))
 					{
 						continue;
 					}
@@ -710,9 +750,9 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						break;
 					}
 				}
-				else if(SLICE_WATCH_CHG == cur_state){
+				else if(SLICE_CHG == cur_state){
 					
-					if(0 == change_slice_state(nid,slice_id,SLICE_WATCH_CHG,SLICE_VOLATILE)){
+					if(0 == change_slice_state(nid,slice_id,SLICE_CHG,SLICE_VOLATILE)){
 						ret = 0;
 						break;
 					}                        
@@ -728,51 +768,82 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 		case SLICE_OUT_DEAMON_QUE:
 		{
 			unsigned long long que_id;
-			cur_state = get_slice_state(nid,slice_id);
+			do
+			{
+				cur_state = get_slice_state(nid,slice_id);
 			
-			if(SLICE_ENQUE != cur_state && SLICE_IDLE != cur_state)
-			{
-				printk("err state in volatile proc 2 %lld\r\n",cur_state);
-			}
-#ifdef SLICE_OP_CLUSTER_QUE
-		
-			que_id = atomic64_add_return(1,(atomic64_t*)&proc_deamon_cnt);
-			if(-1 == lfrwq_in_cluster_que(data,que_id>>10))
-#else
-			if(-1 == lfrwq_inq(slice_que,data))
-#endif
-			{
-	
-				atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_err);
-				do
+				if(SLICE_ENQUE == cur_state)
 				{
-					cur_state = get_slice_state(nid,slice_id);
-					if(SLICE_ENQUE == cur_state)
+#ifdef SLICE_OP_CLUSTER_QUE
+			
+					que_id = atomic64_add_return(1,(atomic64_t*)&proc_deamon_cnt);
+					if(-1 == lfrwq_in_cluster_que(data,que_id>>10))
+#else
+					if(-1 == lfrwq_inq(slice_que,data))
+#endif
 					{
-						if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+						atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_err);
+						do
 						{
-							ret = 0;
-							break;
-						}
-					}
-					else if(SLICE_IDLE == cur_state)
-					{	
-						free_slice(slice_idx);
-						ret =0;
-						break;
+							cur_state = get_slice_state(nid,slice_id);
+							if(SLICE_ENQUE == cur_state)
+							{
+								if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+								{
+									ret = 0;
+									break;
+								}
+							}
+							else if(SLICE_IDLE == cur_state)
+							{	
+								free_slice(slice_idx);
+								ret =0;
+								break;
+							}
+							else if(SLICE_CHG == cur_state)
+							{
+								if(0 == change_slice_state(nid,slice_id,SLICE_CHG,SLICE_VOLATILE))
+								{
+									ret = 0;
+									break;
+								}
+							}
+							else
+							{
+								printk("err state in volatile proc %lld\r\n",cur_state);
+								break;
+							}
+
+						}while(1);
 					}
 					else
 					{
-						printk("err state in volatile proc %lld\r\n",cur_state);
+						atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_ok);
+						ret = 0;
 					}
+					break;
+				}
+				else if(SLICE_IDLE == cur_state)
+				{
+					free_slice(slice_idx);
+					ret =0;
+					break;
+				}
+				else if(SLICE_CHG == cur_state)
+				{
+					if(0 == change_slice_state(nid,slice_id,SLICE_CHG,SLICE_VOLATILE))
+					{
+						ret = 0;
+						break;
+					}
+				}
+				else
+				{
+					printk("err state in volatile proc %lld\r\n",cur_state);
+					break;
+				}
 
-				}while(1);
-			}
-			else
-			{
-				atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_ok);
-				ret = 0;
-			}
+			}while(1);
 			break;
 		}
 	
@@ -798,7 +869,7 @@ int process_slice_check(void)
 	}
 	return 0;
 #endif
-#if 1
+#if 0
 	if(0 == strcmp(current->comm,src))
 	{	
 	#if 0		
@@ -812,6 +883,7 @@ if(!pone_debug_ljy_mm)
 	else
 		return 0;
 #endif
+	return 1;
 }
 
 int process_slice_file_check(unsigned long i_ino)

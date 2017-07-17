@@ -25,7 +25,7 @@ enum mem_slice_state
 	SLICE_IDLE,
     SLICE_ENQUE,
     SLICE_WATCH,
-    SLICE_WATCH_CHG,
+    SLICE_CHG,
     SLICE_FIX,
     SLICE_VOLATILE,
     SLICE_STATE_MAX, 
@@ -89,6 +89,8 @@ unsigned long long change_slice_volatile_cnt(unsigned int nid,unsigned long slic
 void clear_deamon_cnt(unsigned int nid,unsigned long slice_id);
 void add_slice_volatile_cnt(unsigned int nid,unsigned long slice_id);
 void mark_volatile_cnt_in_wcopy(unsigned long old_slice,unsigned long new_slice);
+
+void slice_mapcount_add_process(void *data);
 
 static inline int slice_idx_to_node(unsigned long slice_idx)
 {

@@ -177,9 +177,14 @@ void hugepage_add_anon_rmap(struct page *, struct vm_area_struct *,
 void hugepage_add_new_anon_rmap(struct page *, struct vm_area_struct *,
 				unsigned long);
 
+
 static inline void page_dup_rmap(struct page *page)
 {
 	atomic_inc(&page->_mapcount);
+	#ifdef CONFIG_PONE_MODULE
+	extern void slice_mapcount_add_process(void *data);
+	slice_mapcount_add_process(page);
+	#endif
 }
 
 /*

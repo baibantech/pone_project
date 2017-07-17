@@ -433,8 +433,6 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 		}     
 		
 		get_page(new_page);
-		page_add_anon_rmap(new_page, vma, addr);
-
 		flush_cache_page(vma, addr, pte_pfn(*ptep));
 		entry = ptep_clear_flush_notify(vma, addr, ptep);
 		
@@ -450,6 +448,7 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 			goto out_unlock;	
 		}
 		
+		atomic_inc(&new_page->_mapcount);
 		
 		set_pte_at_notify(mm, addr, ptep, pte_wrprotect(mk_pte(new_page, vma->vm_page_prot)));
 		
@@ -691,7 +690,7 @@ int  slice_file_write_proc(struct address_space *space,unsigned long offset)
 		}
 		else if(SLICE_WATCH == cur_state)
 		{
-			if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_WATCH_CHG))
+			if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_CHG))
 			{
 				atomic64_add(1,(atomic64_t*)&slice_file_watch_chg);
 				unlock_page(page);
@@ -797,7 +796,7 @@ struct page* slice_file_replace_proc(struct address_space *mapping,unsigned long
 		}
 		else if(SLICE_WATCH == cur_state)
 		{
-			if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_WATCH_CHG))
+			if(0 == change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_CHG))
 			{
 				atomic64_add(1,(atomic64_t*)&slice_file_watch_chg);
 				return page;

@@ -97,6 +97,8 @@ extern unsigned long long data_cmp_cnt;
 extern unsigned long long data_cmp_err;
 extern unsigned long long data_cmp_ptr_null;
 
+extern unsigned long long slice_copy_pte_cnt ;
+extern unsigned long long slice_copy_pte_cnt1 ;
 extern void* page_insert;
 extern char page_in_tree[];
 extern int deamon_scan_period;
@@ -339,6 +341,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"virt page lock err : %d\r\n",virt_mem_page_lock_err);
 	len += sprintf(buf +len ,"virt page state  err : %d\r\n",virt_mem_page_state_conflict);
 	len += sprintf(buf +len ,"virt page count   err : %d\r\n",virt_mem_page_count_err);
+	len += sprintf(buf +len ,"slice copy pte  count  : %lld\r\n",slice_copy_pte_cnt);
+	len += sprintf(buf +len ,"slice copy pte1  count  : %lld\r\n",slice_copy_pte_cnt1);
 	
 #if 0
 	len += sprintf(buf +len , "data cmp count : %d\r\n",data_cmp_cnt);

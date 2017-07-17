@@ -1152,10 +1152,18 @@ static void __page_check_anon_rmap(struct page *page,
  * and to ensure that PageAnon is not being upgraded racily to PageKsm
  * (but PageKsm is never downgraded to PageAnon).
  */
+unsigned long long slice_copy_pte_cnt1;
 void page_add_anon_rmap(struct page *page,
 	struct vm_area_struct *vma, unsigned long address)
 {
 	do_page_add_anon_rmap(page, vma, address, 0);
+#ifdef CONFIG_PONE_MODULE
+	if(get_slice_state_by_id(page_to_pfn(page))!= SLICE_NULL)
+	{
+		atomic64_add(1,(atomic64_t*)slice_copy_pte_cnt1);
+	}
+
+#endif
 }
 
 #ifdef CONFIG_PONE_MODULE

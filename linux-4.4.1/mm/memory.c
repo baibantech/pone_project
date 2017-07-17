@@ -805,7 +805,7 @@ out:
  * already present in the new task to be cleared in the whole range
  * covered by this vma.
  */
-
+unsigned long long slice_copy_pte_cnt = 0;
 static inline unsigned long
 copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		pte_t *dst_pte, pte_t *src_pte, struct vm_area_struct *vma,

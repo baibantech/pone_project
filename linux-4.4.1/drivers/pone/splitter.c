@@ -3860,10 +3860,11 @@ spt_debug("=====================================================\r\n");
                 if(!pclst->is_bottom)
                     refresh_db_hang_vec(pclst, pcur, pdh);
                 op = SPT_OP_FIND;
-                pcur = ppre;
+                //pcur = ppre;
                 cur_data = SPT_INVALID;
                 pqinfo->ref_cnt = 0;
-                goto refind_forward;
+                //goto refind_forward;
+                goto refind_start;
             }
             else
             {
@@ -4211,7 +4212,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
 
     
-    for(i=0;i< 999;i++)
+    for(i=0;i< 4;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);
