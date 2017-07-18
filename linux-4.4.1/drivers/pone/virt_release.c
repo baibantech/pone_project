@@ -200,26 +200,29 @@ int virt_mem_guest_init(void)
 {
     void __iomem *ioaddr = ioport_map(0xb000,0);
     struct page *page1 = NULL;
-	int io_reserve_mem = 0;	
-	char *ptr = virt_mem_pool_begin;
-	if(!ptr)
-	{
-		printk("reserved mem get err \r\n");
-	}
-
-    init_guest_mem_pool(ptr,virt_mem_pool_len); 
-    print_virt_mem_pool(ptr);
+	unsigned long long  io_reserve_mem = 0;	
+	char *ptr = NULL;
 
 	io_reserve_mem = ioread32(ioaddr);
-	printk("io reserve mem add is 0x%x\r\n",io_reserve_mem);
-
-	iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
-	print_virt_mem_pool(ptr);
-	if(guest_page_clear_ok)
-		guest_page_no_need_clear  = 1;
-	barrier();	
-	guest_mem_pool = ptr;
-
+	printk("io reserve mem add is 0x%llx\r\n",io_reserve_mem);
+	if(io_reserve_mem != 0xFFFFFFFF)
+	{
+		ptr = ioremap(io_reserve_mem <<12 , 0x10000000);
+		printk("ptr remap addr is %p\r\n");
+		if(ptr != NULL)
+		{
+			
+			init_guest_mem_pool(ptr,0x10000000); 
+			print_virt_mem_pool(ptr);
+			
+			iowrite32(io_reserve_mem, ioaddr);
+			print_virt_mem_pool(ptr);
+			if(guest_page_clear_ok)
+				guest_page_no_need_clear  = 1;
+			barrier();	
+			guest_mem_pool = ptr;
+		}
+	}
     return 0;
 }
 
