@@ -200,7 +200,7 @@ int virt_mem_guest_init(void)
 {
     void __iomem *ioaddr = ioport_map(0xb000,0);
     struct page *page1 = NULL;
-	
+	int io_reserve_mem = 0;	
 	char *ptr = virt_mem_pool_begin;
 	if(!ptr)
 	{
@@ -209,7 +209,11 @@ int virt_mem_guest_init(void)
 
     init_guest_mem_pool(ptr,virt_mem_pool_len); 
     print_virt_mem_pool(ptr);
-    iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
+
+	io_reserve_mem = ioread32(ioaddr);
+	printk("io reserve mem add is 0x%x\r\n",io_reserve_mem);
+
+	iowrite32(virt_to_phys(ptr) >> 12, ioaddr);
 	print_virt_mem_pool(ptr);
 	if(guest_page_clear_ok)
 		guest_page_no_need_clear  = 1;
