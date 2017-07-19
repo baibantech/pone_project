@@ -208,7 +208,7 @@ int virt_mem_guest_init(void)
 	if(io_reserve_mem != 0xFFFFFFFF)
 	{
 		ptr = ioremap(io_reserve_mem <<12 , 0x10000000);
-		printk("ptr remap addr is %p\r\n");
+		printk("ptr remap addr is %p\r\n",ptr);
 		if(ptr != NULL)
 		{
 			
