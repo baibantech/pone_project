@@ -50,7 +50,7 @@ int is_virt_mem_pool_page(struct mm_struct *mm, unsigned long address)
 			{
 				if(address >= hva)
 				{
-					if(address < (hva+5000*4096))
+					if(address < (hva+ 0x10000000))
 					{
 						return 1;
 					}
@@ -465,7 +465,11 @@ int delete_mm_in_pool(struct mm_struct *mm)
 
 int is_virt_page_release(struct virt_release_mark *mark)
 {
-	return strcmp(mark->desc,release_dsc);
+	if((0 == strcmp(mark->desc,release_dsc))&&(mark->pool_id < MEM_POOL_MAX))
+	{
+		return 0;
+	}
+	return 1;
 }
 
 
@@ -657,7 +661,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 				else
 				{
 					get_page(release_merge_page);
-					page_add_anon_rmap(release_merge_page, vma, hva);
+					atomic_add(1,&release_merge_page->_mapcount);
 					set_pte_at_notify(mm, hva, r_ptep, pte_wrprotect(mk_pte(release_merge_page, vma->vm_page_prot)));
 					page_remove_rmap(release_page);
 					ret = 0;

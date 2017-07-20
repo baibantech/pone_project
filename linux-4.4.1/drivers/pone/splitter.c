@@ -6069,6 +6069,142 @@ u32 debug_thrd_data_statistic(cluster_head_t *pclst)
     }
     return total;
 }
+spt_sort_info *debug_statistic2(cluster_head_t *pclst)
+{
+    spt_vec **stack;
+    spt_sort_info *psort;
+    int cur_data, cur_vecid, index;
+    spt_vec *pcur, cur_vec;
+//    spt_vec_f st_vec_f;
+    spt_dh *pdh;
+    u32 ref_total, buf_vec_total, buf_data_total,data_total;
+    u32 lower_ref;
+    cluster_head_t *plower_clst;
+    char *pcur_data = NULL;
+
+    stack = (spt_vec **)kmalloc(4096*8*8,GFP_ATOMIC);
+    if(stack == NULL)
+    {
+        return 0;
+    }
+    index = 0;
+
+    cur_data = SPT_INVALID;
+
+    cur_vecid = pclst->vec_head;
+    pcur = (spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
+
+    cur_vec.val = pcur->val;
+    if(cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL)
+    {
+        printk("cluster is null\r\n");
+        return NULL;
+    }
+    #if 0
+    rank = pclst->used_dblk_cnt;
+    cur_data = cur_vec.data;
+    if(cur_data != SPT_INVALID)
+    {
+        pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+        pcur_data = get_real_data(pclst, pdh->pdata);
+    }
+    #endif
+    stack[index] = pcur;
+    index++;
+
+    while (1)
+    {
+        if(cur_vec.type != SPT_VEC_DATA)
+        {
+            cur_vecid = cur_vec.rd;
+            pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+            cur_vec.val = pcur->val;
+            //debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
+            //debug_vec_print(&st_vec_f, cur_vecid);
+            if(cur_vec.type == SPT_VEC_SIGNPOST)
+            {
+                spt_debug("signpost vec found!!\r\n");
+                while(1);
+            }
+            //debug_travl_stack_push(pstack,&st_vec_f, signpost);
+            stack[index] = pcur;
+            index++;
+            #if 0
+            pos = st_vec_f.pos;
+            if(pos != 0)
+                spt_bit_cpy(data, pcur_data, bit, pos);
+            else
+                spt_bit_cpy(data, pcur_data, bit, DATA_BIT_MAX - bit);
+            bit += st_vec_r.pos;
+            #endif
+        }
+        else
+        {            
+            cur_data = cur_vec.rd;
+            if(cur_data != SPT_NULL)
+            {
+                pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
+                pcur_data = pdh->pdata;
+                ref_total += pdh->ref;
+                if(!pclst->is_bottom)
+                {
+                    plower_clst = ((spt_dh_ext *)pcur_data)->plower_clst;
+                    buf_data_total += debug_thrd_data_statistic(plower_clst);
+                    buf_vec_total += debug_thrd_vec_statistic(plower_clst);
+                    lower_ref += debug_statistic2(plower_clst);
+					data_total += plower_clst->data_total;
+				}
+				else
+				{
+					slice_data_cmp(pcur_data,__LINE__);
+				}
+
+                //debug_pdh_data_print(pclst, pdh);            
+            }
+
+            if(index == 0)
+            {
+                break;
+            }
+            while(1)
+            {
+                index--;
+                pcur = stack[index];
+                cur_vec.val = pcur->val;
+                if(cur_vec.down != SPT_NULL)
+                {
+                    cur_vecid =cur_vec.down;
+                    pcur = (spt_vec *)vec_id_2_ptr(pclst, cur_vecid);
+                    cur_vec.val = pcur->val;
+                    
+                    if(cur_vec.type == SPT_VEC_SIGNPOST)
+                    {
+                        spt_debug("signpost vec found!!\r\n");
+                        while(1);
+                    }
+                    stack[index] = pcur;
+                    index++;
+                    break;
+                }              
+                if(index == 0)
+                {
+                    //todo
+                    goto sort_exit;
+                }                
+            }
+        }
+    }
+sort_exit:    
+    kfree(stack);
+    if(!pclst->is_bottom)
+    {
+        spt_debug("\r\n lower_total_ref:%d\r\n", lower_ref);
+        spt_debug("\r\n data_total:%d\r\n", data_total);
+        spt_debug("\r\n buf_data_total:%d\r\n", buf_data_total);
+        spt_debug("\r\n buf_vec_total:%d\r\n", buf_vec_total);
+    }    
+    return ref_total;
+}
 
 
 int debug_statistic(cluster_head_t *pclst)

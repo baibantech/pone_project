@@ -383,10 +383,38 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 extern void debug_mm_pte(void);
 extern cluster_head_t *plow_clst;
 extern int debug_cluster_travl(cluster_head_t *pclst);
+extern unsigned long long debug_refind[48];
+extern unsigned long long debug_refind_max[48];
+extern unsigned long long map_cnt_max[48];
+extern int thread_map_cnt[64];
+extern int thread_zero_cnt[64];
 static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	debug_mm_pte();
-	debug_cluster_travl(plow_clst);
+	//debug_mm_pte();
+	//debug_cluster_travl(plow_clst);
+	
+	int i = 0;
+	for(i = 0; i <48;i++)
+	{
+		if(debug_refind[i] != 0 || debug_refind_max[i] != 0)
+		{
+			printk("idx %d,num %lld,max %lld\r\n",i,debug_refind[i],debug_refind_max[i]);
+		}
+	}
+	for(i = 0; i <48;i++)
+	{
+		if(map_cnt_max[i] != 0)
+		{
+			printk("idx %d,map_cnt_max %lld\r\n",i,map_cnt_max[i]);
+		}
+	}
+	
+	for(i = 0; i <48;i++)
+	{
+		printk("zero cnt %d,map_cnr %d\r\n",thread_zero_cnt[i],thread_map_cnt[i]);
+	}
+	debug_statistic(pgclst);
+	
 	return sprintf(buf,"%ld",pone_file_watch);
 
 }
@@ -426,9 +454,8 @@ extern void show_pone_time_stat(void);
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {	
 	//slice_debug_area_show();
-	print_host_virt_mem_pool();	
-	debug_statistic(pgclst);
 	printk_debug_map_cnt();
+	print_host_virt_mem_pool();	
 	walk_guest_mem_pool();
 	if(release_merge_page)
 	{
@@ -436,8 +463,8 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 		printk("release page state %lld\r\n",get_slice_state_by_id(page_to_pfn(release_merge_page)));
 	}
 	//show_page_err_info();
-	add_slice_volatile_cnt_test(0,1000);
-	show_slice_volatile_cnt();
+	//add_slice_volatile_cnt_test(0,1000);
+	//show_slice_volatile_cnt();
 	show_pone_time_stat();
 	return sprintf(buf,"check dmesg buffer11111");
 }

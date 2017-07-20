@@ -518,12 +518,11 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 				}
 				else if(SLICE_ENQUE == cur_state){
 
-				unsigned long long time_begin;
-#if 0
+					unsigned long long time_begin;
+					int virt_release_page = 0;
 					page_addr = kmap_atomic(org_slice);
 					if(0 == is_virt_page_release(page_addr))
 					{
-#if 1
 						if(0 == process_virt_page_release(page_addr,org_slice))
 						{
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
@@ -543,31 +542,12 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						{
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_err);
 						}
-
-						if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
-						{
-							ret = 0;
-							break;
-						}
-#else
-						atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
-							kunmap(org_slice);
-							ret = 0;
-							break;
-#endif
+						virt_release_page = 1;
 					}
 					
-					kunmap_atomic(page_addr);
-#if 0
-					if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
-					{
-						ret = 0;
-						break;
-					}
-#endif
-#endif
 					if(0 != atomic_read(&org_slice->_mapcount))
 					{
+						kunmap_atomic(page_addr);
 						if (0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
 						{
 							add_slice_volatile_cnt(nid,slice_id);
@@ -583,6 +563,20 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						time_begin = rdtsc();	
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
+							if(!virt_release_page)
+							if(0 == is_virt_page_release(page_addr))
+							{
+								if(0 ==  change_slice_state(nid,slice_id,SLICE_WATCH,SLICE_VOLATILE))
+								{
+									kunmap_atomic(page_addr);
+									add_slice_volatile_cnt(nid,slice_id);
+									ret = 0;
+									break;
+								}
+							
+							}
+							kunmap_atomic(page_addr);
+								
 							PONE_TIMEPOINT_SET(slice_protect_ok,(rdtsc()- time_begin));
 							time_begin = rdtsc();
 #if 1
@@ -599,7 +593,6 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 								PONE_TIMEPOINT_SET(slice_in_watch_que,(rdtsc()- time_begin));
 								atomic64_add(1,(atomic64_t*)&slice_in_watch_que_ok);
 								ret = 0;
-								
 								
 								break;
 							}
@@ -641,6 +634,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						
 						break;
 					}
+					else
+						kunmap_atomic(page_addr);
 #endif
 				}
 				else if(SLICE_CHG == cur_state){
@@ -869,7 +864,7 @@ int process_slice_check(void)
 	}
 	return 0;
 #endif
-#if 0
+#if 1
 	if(0 == strcmp(current->comm,src))
 	{	
 	#if 0		
@@ -883,7 +878,7 @@ if(!pone_debug_ljy_mm)
 	else
 		return 0;
 #endif
-	return 1;
+	//return 1;
 }
 
 int process_slice_file_check(unsigned long i_ino)

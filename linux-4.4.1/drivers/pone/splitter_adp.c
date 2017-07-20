@@ -57,6 +57,9 @@ struct task_struct *spt_thread_id[128] = {NULL};
 
 unsigned long long data_map_key_cnt = 0;
 unsigned long long data_unmap_key_cnt = 0;
+
+int thread_map_cnt[64] = {0};
+int thread_zero_cnt[64] = {0};
 struct page *get_page_ptr(char *pdata)
 {
 	return (struct page*)(pdata);
@@ -76,6 +79,11 @@ char *tree_get_key_from_data(char *pdata)
 	{
 		return NULL;
 	}
+	if(thread_map_cnt[g_thrd_id] == 0)
+	{
+		thread_zero_cnt[g_thrd_id]++;
+	}
+	thread_map_cnt[g_thrd_id]++;
 
 	page_addr =  kmap_atomic(page);
 #if 0
@@ -392,7 +400,7 @@ void slice_data_cmp(void *data,unsigned int lineno)
 #endif
 }
 extern void printk_debug_map_cnt_id(int);
-
+extern void print_debug_path(int id);
 int delete_sd_tree(unsigned long slice_idx,int op)
 {
 	struct page *page = pfn_to_page(slice_idx);
@@ -417,6 +425,10 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 		{
 #if 1
 			printk_debug_map_cnt_id(g_thrd_id);
+			
+			if(-10000 == ret)
+				print_debug_path(g_thrd_id);
+
 			page_addr = kmap_atomic(page);
 			printk("\r\n");
 			for(i = 0 ; i < 32 ;i++)
@@ -435,6 +447,26 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 			printk("org_slice %p count %d,mapcount %d\r\n",page,atomic_read(&page->_count),atomic_read(&page->_mapcount));
 			printk("delete thread erro code is %d\r\n",spt_get_errno());
 			//dump_stack();
+			
+			if(-10000 == ret)
+			{
+				for(i =0 ; i < 10; i++)
+				{
+					spt_thread_start(g_thrd_id);
+					ret = delete_data(pgclst,page);
+					spt_thread_exit(g_thrd_id);
+					if(ret < 0)
+					{
+						printk("rdelete sd tree ret %d\r\n",ret);
+					}
+					else
+					{
+						printk("rdelete ok cnt is %d\r\n",i);
+						print_debug_path(g_thrd_id);
+						break;
+					}
+				}
+			}
 		}
 		else
 		{

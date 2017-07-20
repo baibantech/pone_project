@@ -157,6 +157,7 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	{
 		return -1;
 	}
+	
 	if(is_virt_mem_pool_page(mm,addr))
 	{
 		return -1;
