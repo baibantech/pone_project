@@ -16,8 +16,6 @@ extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
 char* release_dsc = "page can release xxx";
 struct page *release_merge_page = NULL;
-extern void *virt_mem_pool_begin;
-extern int virt_mem_pool_len;
 
 
 EXPORT_SYMBOL(release_merge_page);

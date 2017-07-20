@@ -425,8 +425,6 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 	unsigned long store_tmp = 0;	
 	err =  kstrtoul(buf,10,&store_tmp);
 	printk("store_tmp is %ld\r\n",store_tmp);
-
-	deamon_scan_period = store_tmp;
 #if 0
 	//pone_file_watch = store_tmp;
 	if(1 ==store_tmp)
@@ -469,13 +467,32 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	return sprintf(buf,"check dmesg buffer11111");
 }
 
-
 PONE_ATTR_RO(pone_sd_tree);
+
+
+static ssize_t pone_deamon_scan_period_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf,size_t count)
+{
+	int err;
+	err =  kstrtoul(buf,10,&deamon_scan_period);
+	printk("deamon_scan_period is %ld\r\n",deamon_scan_period);
+	return count;
+}
+
+static ssize_t pone_deamon_scan_period_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%ld",deamon_scan_period);
+}
+
+PONE_ATTR(pone_deamon_scan_period);
+
+
+
 
 static struct attribute *pone_attrs[] = {
 		&pone_info_attr.attr,
 		&pone_debug_attr.attr,
 		&pone_sd_tree_attr.attr,
+		&pone_deamon_scan_period_attr.attr,
 		NULL,
 };
 
