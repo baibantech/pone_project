@@ -703,7 +703,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					if(NULL == result){
 						while (0 != change_slice_state(nid,slice_id,get_slice_state(nid,slice_id),SLICE_VOLATILE));
 						put_page(org_slice);
-						atomic64_add(1,(atomic64_t*)slice_insert_sd_tree_err);
+						atomic64_add(1,(atomic64_t*)&slice_insert_sd_tree_err);
 						add_slice_volatile_cnt(nid,slice_id);
 						break;
 					}

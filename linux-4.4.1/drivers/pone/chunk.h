@@ -196,5 +196,6 @@ void spt_set_thrd_id(int val);
 
 int spt_thread_start(int thread);
 void spt_thread_exit(int thread);
+int spt_divided_scan(cluster_head_t *pclst);
 #endif
 

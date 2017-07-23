@@ -71,6 +71,7 @@ extern unsigned long long slice_deamon_find_volatile;
 
 extern struct task_struct *spt_deamon_thread;
 extern int debug_statistic(cluster_head_t *head);
+extern void debug_cluster_travl(cluster_head_t *head);
 #if 0
 extern unsigned long long slice_file_cow;
 extern unsigned long long slice_file_watch_chg;
@@ -382,7 +383,6 @@ static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *att
 #endif
 extern void debug_mm_pte(void);
 extern cluster_head_t *plow_clst;
-extern int debug_cluster_travl(cluster_head_t *pclst);
 extern unsigned long long debug_refind[48];
 extern unsigned long long debug_refind_max[48];
 extern unsigned long long map_cnt_max[48];
@@ -391,7 +391,7 @@ extern int thread_zero_cnt[64];
 static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	//debug_mm_pte();
-	//debug_cluster_travl(plow_clst);
+	debug_cluster_travl(pgclst);
 	
 	int i = 0;
 	for(i = 0; i <48;i++)

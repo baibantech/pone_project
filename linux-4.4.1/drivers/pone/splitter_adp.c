@@ -12,6 +12,7 @@
 #include <linux/rmap.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/delay.h>
 #include <linux/highmem.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
@@ -54,6 +55,7 @@ void record_tree(struct page *page,char op)
 
 
 struct task_struct *spt_thread_id[128] = {NULL};
+struct task_struct *spt_divid_thread = NULL;
 
 unsigned long long data_map_key_cnt = 0;
 unsigned long long data_unmap_key_cnt = 0;
@@ -141,12 +143,16 @@ void tree_free_data(char *pdata)
 char *tree_construct_data_from_key(char *pkey)
 {
     char *pdata;
-
-    pdata = (char *)kmalloc(DATA_SIZE,GFP_ATOMIC);
-    if(pdata == NULL)
-        return NULL;
+	struct page *key_page = NULL;
+	key_page = alloc_pages(GFP_ATOMIC,0);
+	if(key_page == NULL)
+	{
+		printk("key_page alloc failed\r\n");
+	}
+    pdata = kmap_atomic(key_page);
     memcpy(pdata, pkey, DATA_SIZE);
-    return (char *)pdata;
+	kunmap_atomic(pdata);
+	return (char *)key_page;
 }
 
 #ifdef SLICE_OP_CLUSTER_QUE
@@ -239,6 +245,30 @@ void splitter_thread_wakeup(void)
 			{
 				wake_up_process(spt_thread_id[i]);
 			}
+		}
+	}
+}
+
+
+void splitter_divide_thread(void *arg)
+{
+	unsigned long long start_jiffies = 0;
+	unsigned long long end_jiffies = 0;
+	unsigned long long cost_time = 0;
+	__set_current_state(TASK_RUNNING);
+	while(1)
+	{
+		start_jiffies = get_jiffies_64();
+		spt_divided_scan(arg);
+		end_jiffies = get_jiffies_64();
+		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
+		if(cost_time > 10000)
+		{
+			msleep(10000);
+		}
+		else
+		{
+			msleep(10000 - cost_time);
 		}
 	}
 }
@@ -342,7 +372,19 @@ int pone_case_init(void)
 		}
 		thrd_cnt++;
 	}
+#if 1	
+	spt_divid_thread = kthread_create(splitter_divide_thread ,pgclst,"spthrd_divide");
 
+	if(IS_ERR(spt_divid_thread))
+	{
+		printk("err create spt_divide_thread \r\n");
+		return -1;
+	}
+	else
+	{
+		wake_up_process(spt_divid_thread);
+	}
+#endif
 	return 0;
 }
 unsigned long long insert_sd_tree_ok =0;
@@ -426,15 +468,17 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 #if 1
 			printk_debug_map_cnt_id(g_thrd_id);
 			
-			if(-10000 == ret)
-				print_debug_path(g_thrd_id);
+			//if(-10000 == ret)
+			//	print_debug_path(g_thrd_id);
 
 			page_addr = kmap_atomic(page);
 			printk("\r\n");
-			for(i = 0 ; i < 32 ;i++)
+			if(-10000 == ret)
+			for(i = 0 ; i < 4096 ;i++)
 			{
+				if(i%32 == 0)
+					printk("\r\n");
 				printk("%02x ",*((unsigned char*)page_addr +i));
-
 			}
 			printk("\r\n");
 
@@ -452,6 +496,9 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 			{
 				for(i =0 ; i < 10; i++)
 				{
+	           	    preempt_enable();
+					msleep(2);
+					preempt_disable();
 					spt_thread_start(g_thrd_id);
 					ret = delete_data(pgclst,page);
 					spt_thread_exit(g_thrd_id);

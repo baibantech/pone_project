@@ -1752,7 +1752,7 @@ spt_divided_info *spt_divided_info_init(spt_sort_info *psort, int dvd_times,
     {
         n += SPT_DVD_CNT_PER_TIME;
         pNth_data = get_about_Nth_smallest_data(psort, n);
-        psrc = pdclst->get_key(pNth_data);
+        psrc = pdclst->get_key_in_tree(pNth_data);
 
         pdata = puclst->construct_data(psrc);
         if(NULL == pdata)
@@ -1769,6 +1769,7 @@ spt_divided_info *spt_divided_info_init(spt_sort_info *psort, int dvd_times,
             return NULL;
         }
         d_vb_array[loop] = pdata;
+        pdclst->get_key_in_tree_end(psrc);
 
     }
     pdvd_info->pdst_clst = cluster_init(pdvd_info->down_is_bottom, 
@@ -1802,14 +1803,18 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
 
     pext_head = pup;
     plower_clst = pext_head->plower_clst;
-    spt_thread_start(g_thrd_id);
+   
+    preempt_disable();
+	spt_thread_start(g_thrd_id);
     
     psort = spt_cluster_sort(pext_head->plower_clst);
     if(psort == NULL)
         return SPT_ERR;
     pdinfo = spt_divided_info_init(psort, move_time, pclst, pext_head->plower_clst);
     spt_thread_exit(g_thrd_id);
-    pdst_clst = pdinfo->pdst_clst;
+    preempt_enable();
+
+	pdst_clst = pdinfo->pdst_clst;
 
     for(loop=0; loop<move_time; loop++)
     {
@@ -1832,6 +1837,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         7.删除虚拟挡板loop-1.
         thread_out
         ***********/
+        preempt_disable();
         spt_thread_start(g_thrd_id);
         do_insert_data(pclst, pdinfo->up_vb_arr[loop], 
                         pclst->get_key_in_tree, pclst->get_key_in_tree_end);
@@ -1851,7 +1857,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
             BUG();
         }
         ins_dvb_id = qinfo.db_id;
-        if(qinfo.data == NULL)
+        //if(qinfo.data == NULL)
         {
             pdinfo->down_vb_arr[loop] = 0;
         }
@@ -1870,6 +1876,9 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                 {
                     spt_thread_exit(g_thrd_id);
                     spt_thread_wait(2, g_thrd_id);
+					preempt_enable();
+					schedule();
+					preempt_disable();
                     spt_thread_start(g_thrd_id);
                 }
                 else
@@ -1906,6 +1915,9 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                     {
                         spt_thread_exit(g_thrd_id);
                         spt_thread_wait(2, g_thrd_id);
+				     	preempt_enable();
+				    	schedule();
+					    preempt_disable();
                         spt_thread_start(g_thrd_id);
                     }
                     else
@@ -1934,6 +1946,9 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                     {
                         spt_thread_exit(g_thrd_id);
                         spt_thread_wait(2, g_thrd_id);
+						preempt_enable();
+						schedule();
+						preempt_disable();
                         spt_thread_start(g_thrd_id);
                     }
                     else
@@ -1959,6 +1974,9 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                 {
                     spt_thread_exit(g_thrd_id);
                     spt_thread_wait(2, g_thrd_id);
+					preempt_enable();
+					schedule();
+					preempt_disable();
                     spt_thread_start(g_thrd_id);
                 }
                 else
@@ -1969,6 +1987,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
             pdinfo->up_vb_arr[loop-1] = 0;
         }
         spt_thread_exit(g_thrd_id);
+        preempt_enable();
     }
     pdinfo->up_vb_arr[loop-1] = 0;
     /*释放资源，虚拟挡板的释放由cluster的缓冲区中来做*/
@@ -4276,7 +4295,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     cluster_head_t *pclst, *plower_clst;
     spt_dh_ext *pdh_ext;
     int i;
-    pclst = cluster_init(0, startbit, 4096, thread_num, pf, pf2, free_data, 
+    pclst = cluster_init(0, startbit, DATA_BIT_MAX, thread_num, pf, pf2, free_data, 
                             spt_upper_construct_data);
     if(pclst == NULL)
         return NULL;
@@ -4304,7 +4323,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
 
     
-    for(i=0;i< 4;i++)
+    for(i=0;i< 10;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);
@@ -4331,7 +4350,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
         pdh_ext->plower_clst = plower_clst;
         do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
     }
-
+    //debug_cluster_travl(pclst);
     return pclst;
 }
 
