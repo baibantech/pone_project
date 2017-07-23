@@ -273,7 +273,9 @@ void slice_mapcount_add_process(void *data)
 		}
 		else if(SLICE_FIX == cur_state)
 		{
+			preempt_disable();
 			result = insert_sd_tree(slice_idx);
+			preempt_enable();
 			if(result != org_page)
 			{
 				printk("error in mapcount add proc line %d\r\n",__LINE__);	
