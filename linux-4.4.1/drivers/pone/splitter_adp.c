@@ -14,6 +14,8 @@
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/highmem.h>
+#include <linux/freezer.h>
+#include <linux/wait.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
 #include "vector.h"
@@ -31,7 +33,8 @@ EXPORT_SYMBOL(ljy_vmalloc_area);
 #define op_code_off (sizeof(int))
 #define page_mem_off (4096*3)
 int  op_index = 0;
-
+int spt_divide_thread_run = 0;
+DECLARE_WAIT_QUEUE_HEAD(pone_divide_thread_run);
 void record_tree(struct page *page,char op)
 {
 	if(ljy_vmalloc_area != NULL)
@@ -256,19 +259,26 @@ void splitter_divide_thread(void *arg)
 	unsigned long long end_jiffies = 0;
 	unsigned long long cost_time = 0;
 	__set_current_state(TASK_RUNNING);
-	while(1)
+	while(!kthread_should_stop())
 	{
-		start_jiffies = get_jiffies_64();
-		spt_divided_scan(arg);
-		end_jiffies = get_jiffies_64();
-		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
-		if(cost_time > 10000)
+		if(spt_divide_thread_run)
 		{
-			msleep(10000);
+			start_jiffies = get_jiffies_64();
+			spt_divided_scan(arg);
+			end_jiffies = get_jiffies_64();
+			cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
+			if(cost_time > 10000)
+			{
+				msleep(10000);
+			}
+			else
+			{
+				msleep(10000 - cost_time);
+			}
 		}
 		else
 		{
-			msleep(10000 - cost_time);
+			wait_event_freezable(pone_divide_thread_run,spt_divide_thread_run);
 		}
 	}
 }
@@ -372,7 +382,6 @@ int pone_case_init(void)
 		}
 		thrd_cnt++;
 	}
-#if 1	
 	spt_divid_thread = kthread_create(splitter_divide_thread ,pgclst,"spthrd_divide");
 
 	if(IS_ERR(spt_divid_thread))
@@ -384,7 +393,6 @@ int pone_case_init(void)
 	{
 		wake_up_process(spt_divid_thread);
 	}
-#endif
 	return 0;
 }
 unsigned long long insert_sd_tree_ok =0;
@@ -524,7 +532,6 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 	}
 	return ret;
 }
-
 
 
 #ifdef SLICE_OP_CLUSTER_QUE

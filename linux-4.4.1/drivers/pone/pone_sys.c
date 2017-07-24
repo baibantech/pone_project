@@ -485,7 +485,27 @@ static ssize_t pone_deamon_scan_period_show(struct kobject *kobj, struct kobj_at
 
 PONE_ATTR(pone_deamon_scan_period);
 
+extern int spt_divide_thread_run ;
+extern struct wait_queue_head_t  pone_divide_thread_run;
+static ssize_t pone_divide_thread_enable_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf,size_t count)
+{
+	int err;
+	err =  kstrtoul(buf,10,&spt_divide_thread_run);
+	printk("spt_divide_thread_run is %ld\r\n",spt_divide_thread_run);
+	if(spt_divide_thread_run)
+	{	
+		wake_up_interruptible(&pone_divide_thread_run);
 
+	}
+	return count;
+}
+
+static ssize_t pone_divide_thread_enable_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%d",spt_divide_thread_run);
+}
+
+PONE_ATTR(pone_divide_thread_enable);
 
 
 static struct attribute *pone_attrs[] = {
@@ -493,6 +513,7 @@ static struct attribute *pone_attrs[] = {
 		&pone_debug_attr.attr,
 		&pone_sd_tree_attr.attr,
 		&pone_deamon_scan_period_attr.attr,
+		&pone_divide_thread_enable_attr.attr,
 		NULL,
 };
 

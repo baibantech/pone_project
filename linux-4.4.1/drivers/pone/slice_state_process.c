@@ -362,7 +362,7 @@ void pre_fix_slice_check(void *data)
 }
 
 EXPORT_SYMBOL(pre_fix_slice_check);
-unsigned long long proc_deamon_cnt;
+
 unsigned long long virt_page_release_merge_ok = 0;
 unsigned long long virt_page_release_merge_err = 0;
 unsigned long long slice_change_volatile_ok = 0;
@@ -764,7 +764,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 
 		case SLICE_OUT_DEAMON_QUE:
 		{
-			unsigned long long que_id;
+			long que_id;
 			do
 			{
 				cur_state = get_slice_state(nid,slice_id);
@@ -772,14 +772,18 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 				if(SLICE_ENQUE == cur_state)
 				{
 #ifdef SLICE_OP_CLUSTER_QUE
-			
-					que_id = atomic64_add_return(1,(atomic64_t*)&proc_deamon_cnt);
-					if(-1 == lfrwq_in_cluster_que(data,que_id>>10))
+					que_id = pone_get_slice_que_id(org_slice);
+					if(-1 == que_id)
+					{
+						goto que_err;
+					}
+					if(-1 == lfrwq_in_cluster_que(data,que_id))
 #else
 					if(-1 == lfrwq_inq(slice_que,data))
 #endif
 					{
 						atomic64_add(1,(atomic64_t*)&slice_volatile_in_que_err);
+que_err:
 						do
 						{
 							cur_state = get_slice_state(nid,slice_id);

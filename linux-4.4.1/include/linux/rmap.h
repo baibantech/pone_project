@@ -268,8 +268,9 @@ pte_t *__page_get_pte_address(struct page *page,struct mm_struct *mm,
 struct anon_vma *page_try_lock_anon_vma_read(struct page *page);
 
 int rmap_walk_pone(struct page *page, struct rmap_walk_control *rwc);
-
+long pone_get_slice_que_id(struct page *page);
 #endif
+
 #else	/* !CONFIG_MMU */
 
 #define anon_vma_init()		do {} while (0)

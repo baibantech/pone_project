@@ -2026,4 +2026,28 @@ int rmap_walk_pone(struct page *page, struct rmap_walk_control *rwc)
     }
 }
 EXPORT_SYMBOL(rmap_walk_pone);
+
+long  pone_get_slice_que_id(struct page *page)
+{
+	struct anon_vma *anon_vma;
+	pgoff_t pgoff;
+	struct anon_vma_chain *avc;
+	long  que_id = -1;
+	anon_vma  = page_try_lock_anon_vma_read(page);
+	if (!anon_vma)
+	{
+		return -1;
+	}
+
+	pgoff = page_to_pgoff(page);
+	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
+		struct vm_area_struct *vma = avc->vma;
+		que_id = (unsigned long)(void*)vma->vm_mm /sizeof(unsigned long);
+		break;		
+	}
+	
+	anon_vma_unlock_read(anon_vma);
+	put_anon_vma(anon_vma);
+	return que_id;
+}
 #endif
