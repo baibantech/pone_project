@@ -1391,6 +1391,7 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 
 #ifdef CONFIG_PONE_MODULE
 	int ret = -1;
+	int need_clear = 0;
 #endif
 
 	for (i = 0; i < (1 << order); i++) {
@@ -1402,7 +1403,11 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 #ifdef CONFIG_PONE_MODULE
 	for(i = 0;  i<(1 << order); i++)
 	{
-		ret += virt_mark_page_alloc(page + i);
+		ret =  virt_mark_page_alloc(page + i);
+		if(0 == ret)
+		{
+			need_clear = 1;
+		}
 	}
 #endif
 
@@ -1416,7 +1421,7 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 #ifdef CONFIG_PONE_MODULE
 	if(guest_page_no_need_clear)
 	{
-		if(0 == ret)	
+		if(need_clear)	
 		{
 			if (gfp_flags & __GFP_ZERO)
 			for (i = 0; i < (1 << order); i++)
