@@ -506,9 +506,24 @@ static ssize_t pone_divide_thread_enable_show(struct kobject *kobj, struct kobj_
 }
 
 PONE_ATTR(pone_divide_thread_enable);
+extern int pone_run;
 
+static ssize_t pone_run_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf,size_t count)
+{
+	int err;
+	err =  kstrtoul(buf,10,&pone_run);
+	printk("pone_run is %ld\r\n",pone_run);
+	return count;
+}
 
+static ssize_t pone_run_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%d",pone_run);
+}
+
+PONE_ATTR(pone_run);
 static struct attribute *pone_attrs[] = {
+		&pone_run_attr.attr,
 		&pone_info_attr.attr,
 		&pone_debug_attr.attr,
 		&pone_sd_tree_attr.attr,

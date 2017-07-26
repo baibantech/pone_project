@@ -21,6 +21,7 @@ lfrwq_t *slice_que = NULL;
 lfrwq_t *slice_watch_que = NULL;
 slice_state_control_block *global_block = NULL;
 unsigned long long alloc_check = 0;
+int pone_run = 1;
 
 unsigned long slice_watch_que_debug = 1;
 unsigned long slice_que_debug = 1;
@@ -523,6 +524,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					unsigned long long time_begin;
 					int virt_release_page = 0;
 					page_addr = kmap_atomic(org_slice);
+#if 1
 					if(0 == is_virt_page_release(page_addr))
 					{
 						if(0 == process_virt_page_release(page_addr,org_slice))
@@ -546,7 +548,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 						}
 						virt_release_page = 1;
 					}
-					
+#endif
+
 					if(0 != atomic_read(&org_slice->_mapcount))
 					{
 						kunmap_atomic(page_addr);
@@ -565,6 +568,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					if(0 == change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_WATCH)){
 						time_begin = rdtsc();	
 						if(SLICE_OK == make_slice_wprotect(slice_idx)){
+#if 1
 							if(!virt_release_page)
 							if(0 == is_virt_page_release(page_addr))
 							{
@@ -577,6 +581,7 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 								}
 							
 							}
+#endif
 							kunmap_atomic(page_addr);
 								
 							PONE_TIMEPOINT_SET(slice_protect_ok,(rdtsc()- time_begin));
@@ -863,7 +868,13 @@ int process_slice_check(void)
 	char *src = "qemu-system-x86";
 	if(!is_pone_init())
 		return 0;
+
+	if(!pone_run)
+	{
+		return 0;
+	}
 #if 0
+
 	if(is_in_mem_pool(current->mm))
 	{
 		return 1;

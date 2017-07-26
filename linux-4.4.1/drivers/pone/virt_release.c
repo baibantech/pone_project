@@ -66,7 +66,7 @@ int virt_mark_page_release(struct page *page)
 	unsigned long long alloc_id;
 	unsigned long long state;
 	unsigned long long idx ;
-	struct virt_release_mark *mark ;
+	volatile struct virt_release_mark *mark ;
 	if(!guest_mem_pool)
 	{
 #ifdef GUEST_KERNEL
@@ -327,13 +327,14 @@ void print_host_virt_mem_pool(void)
 		if(mem_pool_addr[i] != NULL)
 		{
 			unsigned long hva = mem_pool_addr[i]->hva;
-			struct vm_area_struct *vma = mem_pool_addr[i]->args.vma;
-			struct page *begin_page = follow_page(vma,hva,FOLL_TOUCH);
-
+			struct mm_struct *mm = mem_pool_addr[i]->args.mm;
+			struct task_struct *task = mem_pool_addr[i]->args.task; 
+			struct page *begin_page = NULL;
+			get_user_pages_unlocked(task,mm,hva,1,1,0,&begin_page);
 			if(NULL == begin_page)
 			{
-				printk("get host mem pool page err\r\n");
-				return ;
+				printk("get host mem pool idx %d page err\r\n",i);
+				continue;
 			}
 			
 			pool =  (struct virt_mem_pool*)kmap(begin_page);

@@ -1402,7 +1402,7 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 #ifdef CONFIG_PONE_MODULE
 	for(i = 0;  i<(1 << order); i++)
 	{
-		ret = virt_mark_page_alloc(page + i);
+		ret += virt_mark_page_alloc(page + i);
 	}
 #endif
 
