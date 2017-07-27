@@ -24,6 +24,7 @@
 #include <fcntl.h> /* For O_* constants */
 #endif
 
+#include <linux/vmalloc.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
@@ -32,6 +33,7 @@
 #include <linux/highmem.h>
 #include "vector.h"
 #include "chunk.h"
+#include "pone_time.h"
 extern void slice_data_cmp(void *page,unsigned int lineno);
 //DEFINE_PER_CPU(u32 ,local_thrd_id);
 //DEFINE_PER_CPU(int, local_thrd_errno);
@@ -1554,13 +1556,13 @@ char *get_about_Nth_smallest_data(spt_sort_info *psort, int nth)
 }
 void spt_order_array_free(spt_sort_info *psort)
 {
-    kfree(psort);
+    vfree(psort);
 }
 spt_sort_info *spt_order_array_init(cluster_head_t *pclst, int size)
 {
     spt_sort_info *psort_ar;
     
-    psort_ar = (spt_sort_info *)kmalloc(sizeof(spt_sort_info) + sizeof(char *)*size,GFP_ATOMIC);
+    psort_ar = (spt_sort_info *)vmalloc(sizeof(spt_sort_info) + sizeof(char *)*size);
     if(psort_ar == NULL)
         return NULL;
     psort_ar->idx = 0;
@@ -1577,7 +1579,7 @@ spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
 //    spt_vec_f st_vec_f;
     spt_dh *pdh;
 
-    stack = (spt_vec **)kmalloc(4096*8*8,GFP_ATOMIC);
+    stack = (spt_vec **)vmalloc(4096*8*8);
     if(stack == NULL)
     {
         return 0;
@@ -1586,7 +1588,7 @@ spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
     psort = spt_order_array_init(pclst, pclst->data_total);
     if(psort == NULL)
     {
-        kfree(stack);
+        vfree(stack);
         return 0;
     }
     cur_data = SPT_INVALID;
@@ -1683,7 +1685,7 @@ spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
         }
     }
 sort_exit:    
-    kfree(stack);
+    vfree(stack);
     return psort;
 }
 
@@ -1791,7 +1793,7 @@ spt_divided_info *spt_divided_info_init(spt_sort_info *psort, int dvd_times,
 
 int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
 {
-    int loop, dataid, ins_dvb_id, ret;
+    int loop, dataid, ins_dvb_id, ret, total;
     int move_time = SPT_DVD_MOVE_TIMES;
 //    int move_per_cnt = 100;
     spt_sort_info *psort;
@@ -1861,6 +1863,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         {
             pdinfo->down_vb_arr[loop] = 0;
         }
+        total = 0;
         while(1)
         {
             dataid = find_lowest_data(plower_clst, plower_clst->pstart);
@@ -1876,9 +1879,9 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                 {
                     spt_thread_exit(g_thrd_id);
                     spt_thread_wait(2, g_thrd_id);
-					preempt_enable();
-					schedule();
-					preempt_disable();
+					//preempt_enable();
+					//schedule();
+					//preempt_disable();
                     spt_thread_start(g_thrd_id);
                 }
                 else
@@ -1896,6 +1899,16 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
             if(dataid == ins_dvb_id)
             {
                 break;
+            }
+            total ++;
+            if(total == 100)
+            {
+                total = 0;
+                spt_thread_exit(g_thrd_id);
+                preempt_enable();
+                schedule();
+                preempt_disable();
+                spt_thread_start(g_thrd_id);
             }
         }
         while(1)
@@ -4323,7 +4336,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
 
     
-    for(i=0;i< 10;i++)
+    for(i=0;i< 0;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);

@@ -314,6 +314,7 @@ int need_wakeup_deamon(void)
 struct task_struct *spt_deamon_thread = NULL;
 lfrwq_t *slice_deamon_que = NULL;
 unsigned long long slice_deamon_find_volatile = 0;
+unsigned long long slice_deamon_in_que_fail = 0;
 #if 0
 static int splitter_daemon_thread(void *data)
 {
@@ -408,7 +409,7 @@ void show_slice_volatile_cnt(void)
 	}
 
 }
-
+extern void wakeup_splitter_thread_by_que(long que_id);
 static int splitter_daemon_thread(void *data)
 {
 	int i = 0;
@@ -430,6 +431,8 @@ static int splitter_daemon_thread(void *data)
 	int ret = 0;
 	unsigned long long slice_vcnt = 0;
 	unsigned long long slice_scan_cnt = 0;
+	long que_id;
+	struct page *page = NULL;
 	__set_current_state(TASK_RUNNING);
 
 	do
@@ -481,6 +484,13 @@ get_cnt:
 						}
 					}
 #endif
+					slice_idx = slice_begin + j; 
+					page = pfn_to_page(slice_idx);
+					que_id = pone_get_slice_que_id(page);
+					if(-1 == que_id)
+					{
+						continue;
+					}
 					if(0 != change_slice_state(i,j,SLICE_VOLATILE,SLICE_ENQUE))
 					{
 						need_repeat++;
@@ -488,10 +498,16 @@ get_cnt:
 					}
 					
 					slice_deamon_find_volatile++;
-					slice_idx = slice_begin + j; 
 retry:
+
+					
+#if 0
 					if(-1 == lfrwq_inq(slice_deamon_que,pfn_to_page(slice_idx)))
+#endif
+					if(-1 == lfrwq_in_cluster_que(page,que_id))	
 					{
+						slice_deamon_in_que_fail++;
+						wakeup_splitter_thread_by_que(que_id);
 						end_jiffies = get_jiffies_64();
 						cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
 						if(cost_time >deamon_scan_period)
@@ -502,12 +518,14 @@ retry:
 						msleep(1);
 						goto retry;
 					}
+					#if 0
 					volatile_count++; 
 					if(0 == (volatile_count%1000))
 					{
 						lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
 						splitter_thread_wakeup();		
 					}
+#endif
 				}
 
 			}

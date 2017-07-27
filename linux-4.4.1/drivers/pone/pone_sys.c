@@ -68,6 +68,7 @@ extern unsigned long long slice_mem_fix_change;
 extern unsigned long long slice_volatile_in_que_ok;
 extern unsigned long long slice_volatile_in_que_err;
 extern unsigned long long slice_deamon_find_volatile;
+extern unsigned long long slice_deamon_in_que_fail;
 
 extern struct task_struct *spt_deamon_thread;
 extern int debug_statistic(cluster_head_t *head);
@@ -184,7 +185,6 @@ int lfrwq_info_get(lfrwq_t *qh, char *buf)
 	len += sprintf(buf+len, "read  max idex: %lld\r\n",qh->r_max_idx_period);
 	return len;
 }
-
 
 int lfrwq_reader_info_get(lfrwq_reader *reader ,char *buf)
 {
@@ -332,6 +332,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice volatile in que  cnt: %lld\r\n",slice_volatile_in_que_ok);
 	len += sprintf(buf +len ,"slice volatile in que err  cnt: %lld\r\n",slice_volatile_in_que_err);
 	len += sprintf(buf +len ,"slice deamon find volatile  cnt: %lld\r\n",slice_deamon_find_volatile);
+	len += sprintf(buf +len ,"slice deamon in que fail  cnt: %lld\r\n",slice_deamon_in_que_fail);
 	len += sprintf(buf +len ,"deamon task state: %d\r\n",spt_deamon_thread->state);
 	//len += sprintf(buf +len ,"que len: %d\r\n",lfrwq_len(slice_que));
 	//len += sprintf(buf +len ,"watch que len: %d\r\n",lfrwq_len(slice_watch_que));

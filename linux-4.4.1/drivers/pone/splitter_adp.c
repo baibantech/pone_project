@@ -20,6 +20,7 @@
 #include <pone/slice_state_adpter.h>
 #include "vector.h"
 #include "chunk.h"
+#include "pone_time.h"
 
 #ifdef SLICE_OP_CLUSTER_QUE
 lfrwq_t *slice_cluster_que[64] = {NULL};
@@ -176,10 +177,11 @@ static int splitter_process_thread(void *data)
 	{
 		ret = process_state_que(slice_cluster_que[thread_idx],reader,1);
 		w_ret = process_state_que(slice_cluster_watch_que[thread_idx],watch_reader,2);
-		
+#if 0	
 		d_ret = process_state_que(slice_deamon_que,deamon_reader,3);
-
 		if((w_ret != -2) && (ret!= -2)&&(d_ret !=-2))
+#endif
+		if((w_ret != -2) && (ret!= -2))
 		{
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule();
@@ -567,6 +569,14 @@ void splitter_wakeup_cluster(void)
 	{
 		splitter_thread_wakeup();
 	}
+}
+
+void wakeup_splitter_thread_by_que(long que_id)
+{
+	que_id = que_id%pone_thread_num;
+	
+	if(spt_thread_id[1 + pone_thread_interval*que_id]->state != TASK_RUNNING)
+	wake_up_process(spt_thread_id[1+pone_thread_interval*que_id]);		
 }
 
 #endif
