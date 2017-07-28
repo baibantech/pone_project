@@ -240,6 +240,8 @@ int virt_mem_release_init(void)
 			page_addr = kmap(release_merge_page);
 			memset(page_addr,0,PAGE_SIZE);
 			kunmap(release_merge_page);
+			release_merge_page->mapping =(long)release_merge_page->mapping + PAGE_MAPPING_ANON;
+
 			nid = slice_idx_to_node(page_to_pfn(release_merge_page));
 			slice_id = slice_nr_in_node(nid,page_to_pfn(release_merge_page));
 			if(0 != change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE))

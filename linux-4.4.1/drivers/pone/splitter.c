@@ -4359,7 +4359,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
 
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
 
-
+	plow_clst = plower_clst;
     
     for(i=0;i< 0;i++)
     {

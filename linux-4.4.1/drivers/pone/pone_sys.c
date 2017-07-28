@@ -416,6 +416,7 @@ static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr
 	}
 	debug_statistic(pgclst);
 	
+	debug_cluster_travl(plow_clst);
 	return sprintf(buf,"%ld",pone_file_watch);
 
 }
@@ -460,6 +461,7 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	{
 		printk("release page count %d\r\n",page_count(release_merge_page));
 		printk("release page state %lld\r\n",get_slice_state_by_id(page_to_pfn(release_merge_page)));
+		printk("release page anon %d\r\n",PageAnon(release_merge_page));
 	}
 	//show_page_err_info();
 	//add_slice_volatile_cnt_test(0,1000);
