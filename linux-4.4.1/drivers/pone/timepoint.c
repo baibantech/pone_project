@@ -27,6 +27,7 @@ PONE_TIMEPOINT_DEFINE(slice_changeref_func);
 PONE_TIMEPOINT_DEFINE(slice_changeref_start);
 PONE_TIMEPOINT_DEFINE(slice_changeref_end);
 
+PONE_TIMEPOINT_DEFINE(slice_page_recycle);
 
 pone_time_point* pone_time_array[] =
 {
@@ -46,7 +47,7 @@ pone_time_point* pone_time_array[] =
 	PONE_TIMEPOINT_PTR(slice_changeref_func),
 	PONE_TIMEPOINT_PTR(slice_changeref_start),
 	PONE_TIMEPOINT_PTR(slice_changeref_end),
-	
+	PONE_TIMEPOINT_PTR(slice_page_recycle),
 	
 };
 

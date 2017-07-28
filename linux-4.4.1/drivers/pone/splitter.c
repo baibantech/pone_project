@@ -4307,6 +4307,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
 {
     cluster_head_t *pclst, *plower_clst;
     spt_dh_ext *pdh_ext;
+    char *pdata;
     int i;
     pclst = cluster_init(0, startbit, DATA_BIT_MAX, thread_num, pf, pf2, free_data, 
                             spt_upper_construct_data);
@@ -4334,6 +4335,30 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     memset(pdh_ext->data, 0xff, DATA_SIZE);
 
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
+
+
+    plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
+                                pf_free, pf_con);
+    if(plower_clst == NULL)
+    {
+        cluster_destroy(pclst);
+        return NULL;
+    }
+    
+    pdh_ext = kmalloc(sizeof(spt_dh_ext)+DATA_SIZE,GFP_ATOMIC);
+    if(pdh_ext == NULL)
+    {
+        cluster_destroy(pclst);
+        cluster_destroy(plower_clst);
+        return NULL;
+    }
+    pdh_ext->data = (char *)(pdh_ext+1);
+    pdh_ext->plower_clst = plower_clst;
+    pdata = pdh_ext->data + 4095;
+    *pdata = 8192;
+
+    do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
+
 
     
     for(i=0;i< 0;i++)

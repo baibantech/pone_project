@@ -85,5 +85,6 @@ PONE_TIMEPOINT_DEC(slice_changeref_ok);
 PONE_TIMEPOINT_DEC(slice_changeref_func);
 PONE_TIMEPOINT_DEC(slice_changeref_start);
 PONE_TIMEPOINT_DEC(slice_changeref_end);
+PONE_TIMEPOINT_DEC(slice_page_recycle);
 
 #endif

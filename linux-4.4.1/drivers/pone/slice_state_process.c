@@ -527,8 +527,10 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 #if 1
 					if(0 == is_virt_page_release(page_addr))
 					{
+						time_begin = rdtsc();
 						if(0 == process_virt_page_release(page_addr,org_slice))
 						{
+							PONE_TIMEPOINT_SET(slice_page_recycle,(rdtsc() - time_begin));
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
 							
 							if(0 !=  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_NULL))
