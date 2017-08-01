@@ -93,7 +93,6 @@ unsigned long long change_slice_volatile_cnt(unsigned int nid , unsigned long sl
         cur_cnt_unit = *state_unit_addr	;
 		if(old_cnt != ((cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK))
 		{
-			printk("volatile old cnt is %lld,cur cnt is %lld\r\n",old_cnt, (cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK);
 			return -1;
 		}
         
@@ -144,7 +143,6 @@ unsigned long long change_slice_scan_cnt(unsigned int nid , unsigned long slice_
         cur_cnt_unit = *state_unit_addr;
 		if(old_cnt != ((cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK))
 		{
-			printk("scan old cnt is %lld,cur cnt is %lld\r\n",old_cnt, (cur_cnt_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK);
 			return -1;
 		}
 		tmp = cur_cnt_unit; 

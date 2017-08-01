@@ -40,11 +40,6 @@ extern unsigned long long make_slice_protect_err_mapcnt;
 extern unsigned long long rmap_get_anon_vma_err;
 extern unsigned long long rmap_lock_num_err;
 extern unsigned long long rmap_pte_null_err;
-extern unsigned long long pte_err1;
-extern unsigned long long pte_err2;
-extern unsigned long long pte_err3;
-extern unsigned long long pte_err4;
-extern unsigned long long pte_err5;
 
 extern unsigned long long slice_in_watch_que_ok;
 extern unsigned long long slice_in_watch_que_err;
@@ -85,6 +80,7 @@ extern unsigned long long page_free_cnt;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
 extern unsigned long long delete_sd_tree_ok ;
+extern unsigned long long delete_sd_tree_no_found ;
 extern unsigned long long insert_sd_tree_ok ;
 extern unsigned long long slice_pre_fix_check_cnt ;
 
@@ -284,12 +280,6 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"rmap get anon vma  err  cnt: %lld\r\n",rmap_get_anon_vma_err);
 	len += sprintf(buf +len ,"rmap lock num err  cnt: %lld\r\n",rmap_lock_num_err);
 	len += sprintf(buf +len ,"rmap pte null err  cnt: %lld\r\n",rmap_pte_null_err);
-	
-	len += sprintf(buf +len ,"pte err1 cnt: %lld\r\n",pte_err1);
-	len += sprintf(buf +len ,"pte err2 cnt: %lld\r\n",pte_err2);
-	len += sprintf(buf +len ,"pte err3 cnt: %lld\r\n",pte_err3);
-	len += sprintf(buf +len ,"pte err4 cnt: %lld\r\n",pte_err4);
-	len += sprintf(buf +len ,"pte err5 cnt: %lld\r\n",pte_err5);
 
 	len += sprintf(buf +len ,"slice in watch que ok  cnt: %lld\r\n",slice_in_watch_que_ok);
 	len += sprintf(buf +len ,"slice in watch que err cnt: %lld\r\n",slice_in_watch_que_err);
@@ -326,6 +316,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"data map key  cnt: %lld\r\n",data_map_key_cnt);
 	len += sprintf(buf +len ,"data unmap key cnt: %lld\r\n",data_unmap_key_cnt);
 	len += sprintf(buf +len ,"delete sd tree ok cnt: %lld\r\n",delete_sd_tree_ok);
+	len += sprintf(buf +len ,"delete sd tree no found cnt: %lld\r\n",delete_sd_tree_no_found);
 	len += sprintf(buf +len ,"insert sd tree ok cnt: %lld\r\n",insert_sd_tree_ok);
 	len += sprintf(buf +len ,"slice pre fix check cnt: %lld\r\n",slice_pre_fix_check_cnt);
 
@@ -451,6 +442,7 @@ extern void print_host_virt_mem_pool(void);
 extern void walk_guest_mem_pool(void);
 extern void show_slice_volatile_cnt(void);
 extern void show_pone_time_stat(void);
+extern void spt_threadinfo_show(void);
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {	
 	//slice_debug_area_show();
@@ -467,6 +459,7 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	//add_slice_volatile_cnt_test(0,1000);
 	//show_slice_volatile_cnt();
 	show_pone_time_stat();
+	spt_threadinfo_show();
 	return sprintf(buf,"check dmesg buffer11111");
 }
 
@@ -525,6 +518,24 @@ static ssize_t pone_run_show(struct kobject *kobj, struct kobj_attribute *attr, 
 }
 
 PONE_ATTR(pone_run);
+
+extern int pone_page_recycle_enable ;
+
+static ssize_t pone_recycle_run_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf,size_t count)
+{
+	int err;
+	err =  kstrtoul(buf,10,&pone_page_recycle_enable);
+	printk("pone_recycle_run is %ld\r\n",pone_page_recycle_enable);
+	return count;
+}
+
+static ssize_t pone_recycle_run_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf,"%d",pone_page_recycle_enable);
+}
+
+PONE_ATTR(pone_recycle_run);
+
 static struct attribute *pone_attrs[] = {
 		&pone_run_attr.attr,
 		&pone_info_attr.attr,
@@ -532,6 +543,7 @@ static struct attribute *pone_attrs[] = {
 		&pone_sd_tree_attr.attr,
 		&pone_deamon_scan_period_attr.attr,
 		&pone_divide_thread_enable_attr.attr,
+		&pone_recycle_run_attr.attr,
 		NULL,
 };
 

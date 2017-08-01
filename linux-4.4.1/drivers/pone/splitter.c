@@ -4361,7 +4361,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
 
 	plow_clst = plower_clst;
     
-    for(i=0;i< 0;i++)
+    for(i=0;i< 300;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);
@@ -5674,6 +5674,10 @@ int diff_identify(char *a, char *b,u64 start, u64 len, vec_cmpret_t *result)
 }
 #endif
 
+void spt_threadinfo_show(void)
+{
+    printk("tick:%d\tblackmap:%lld\tonlinemap:%lld\r\n",g_thrd_h->tick,g_thrd_h->black_white_map, g_thrd_h->online_map);
+}
 spt_thrd_t *spt_thread_init(int thread_num)
 {
     g_thrd_h = kmalloc(sizeof(spt_thrd_t),GFP_ATOMIC);

@@ -23,6 +23,10 @@ struct virt_mem_args
 	struct kvm *kvm;
 };
 
+#define  VIRT_MEM_OK 0 
+#define  VIRT_MEM_RETRY 1
+#define  VIRT_MEM_FAIL 2
+
 struct virt_mem_pool
 {
 	unsigned long long magic;

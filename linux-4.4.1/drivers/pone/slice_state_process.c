@@ -100,7 +100,6 @@ int slice_state_map_init(slice_state_control_block *blk)
         if(slice_num > 0)
         {
             printk("mem_size is 0x%llx,order is %d\r\n",mem_size,get_order(mem_size));
-			//blk->slice_node[i].slice_state_map = kmalloc(mem_size,GFP_KERNEL);    
 			blk->slice_node[i].slice_state_map = vmalloc(mem_size);    
             
 			if(!blk->slice_node[i].slice_state_map)
@@ -187,10 +186,6 @@ unsigned long long construct_new_state(unsigned int nid,unsigned long long slice
 	}
 	tmp = state_unit; 
 	high_unit = (tmp  >> (offsetbit + SLICE_STATE_BITS))<<(offsetbit+SLICE_STATE_BITS);
-	//printk("offsetbit is %d\r\n",offset);
-	//printk("state unit is 0x%llx\r\n",state_unit);
-	//printk("low unit is 0x%llx\r\n",low_unit);
-	//printk("high unit is 0x%llx\r\n",high_unit);
     return  high_unit + (new_state << offsetbit) + low_unit;
 }
 
@@ -200,15 +195,12 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
     unsigned long long new_state_unit;
 
     volatile unsigned long long *state_unit_addr = get_slice_state_unit_addr(nid,slice_id);
-//	printk("state unit addr is %p\r\n",state_unit_addr);
-//	printk("state unit mem is 0x%llx\r\n",*state_unit_addr);
     do
     {
         cur_state_unit = *state_unit_addr;
 
         if(old_state != get_slice_state_by_unit(cur_state_unit,slice_id))
         {
-            //printk("error slice state in slice alloc %lld\r\n",cur_state_unit);
             return -1;
         }   
 
@@ -225,8 +217,6 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
 
     }while(1);
 	
-//	printk("state unit mem change is 0x%llx\r\n",*state_unit_addr);
-//	printk("slice state is %lld\r\n",get_slice_state(nid,slice_id));
 	return 0;    
 }
 
@@ -528,7 +518,8 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 					if(0 == is_virt_page_release(page_addr))
 					{
 						time_begin = rdtsc();
-						if(0 == process_virt_page_release(page_addr,org_slice))
+						ret =  process_virt_page_release(page_addr,org_slice);
+						if(VIRT_MEM_OK == ret)
 						{
 							PONE_TIMEPOINT_SET(slice_page_recycle,(rdtsc() - time_begin));
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_ok);
@@ -542,10 +533,24 @@ int process_slice_state(unsigned long slice_idx ,int op,void *data,unsigned long
 							put_page(org_slice);
 							ret = 0;
 							break;
-
+						}
+						else if (VIRT_MEM_RETRY == ret)
+						{
+							if(0 ==  change_slice_state(nid,slice_id,SLICE_ENQUE,SLICE_VOLATILE))
+							{
+								kunmap_atomic(page_addr);
+								add_slice_volatile_cnt(nid,slice_id);
+								ret = 0;
+								break;
+							}
+							else
+							{
+								continue;
+							}
 						}
 						else
 						{
+							/* page recycle fail ,continue page merge */
 							atomic64_add(1,(atomic64_t*)&virt_page_release_merge_err);
 						}
 						virt_release_page = 1;

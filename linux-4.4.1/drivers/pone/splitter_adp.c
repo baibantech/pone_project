@@ -424,6 +424,7 @@ char * insert_sd_tree(unsigned long slice_idx)
 	return r_data;
 }
 unsigned long long delete_sd_tree_ok =0;
+unsigned long long delete_sd_tree_no_found  =0;
 
 unsigned long long data_cmp_cnt = 0;
 unsigned long long data_cmp_err = 0;
@@ -462,48 +463,43 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 	int i = 0;
 	if(page)
 	{
+try_again:
+
 		preempt_disable();
 	//	spin_lock(&sd_tree_lock);
 		spt_thread_start(g_thrd_id);
 		//record_tree(page,2);
 		ret = delete_data(pgclst,page);
-		if(cpu != smp_processor_id())
-		{
-			printk("cpu error !!!!!!!!!!!!!!\r\n");
-		}
+		
 		spt_thread_exit(g_thrd_id);
 	//	spin_unlock(&sd_tree_lock);
 		if(ret < 0)
 		{
-#if 1
-			printk_debug_map_cnt_id(g_thrd_id);
-			
-			//if(-10000 == ret)
-			//	print_debug_path(g_thrd_id);
-
-			page_addr = kmap_atomic(page);
-			printk("\r\n");
-			if(-10000 == ret)
-			for(i = 0 ; i < 4096 ;i++)
-			{
-				if(i%32 == 0)
-					printk("\r\n");
-				printk("%02x ",*((unsigned char*)page_addr +i));
-			}
-			printk("\r\n");
-
-			kunmap_atomic(page_addr);
-
-
-			slice_data_cmp(page,__LINE__);
-#endif
-			printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
-			printk("org_slice %p count %d,mapcount %d\r\n",page,atomic_read(&page->_count),atomic_read(&page->_mapcount));
-			printk("delete thread erro code is %d\r\n",spt_get_errno());
-			//dump_stack();
-			
 			if(-10000 == ret)
 			{
+				printk_debug_map_cnt_id(g_thrd_id);
+				
+				atomic64_add(1 ,(atomic64_t*)&delete_sd_tree_no_found);
+				//if(-10000 == ret)
+				//	print_debug_path(g_thrd_id);
+
+				page_addr = kmap_atomic(page);
+				printk("\r\n");
+				if(-10000 == ret)
+				for(i = 0 ; i < 4096 ;i++)
+				{
+					if(i%32 == 0)
+						printk("\r\n");
+					printk("%02x ",*((unsigned char*)page_addr +i));
+				}
+				printk("\r\n");
+				kunmap_atomic(page_addr);
+				slice_data_cmp(page,__LINE__);
+				
+				printk("delete_sd_tree %p,op is %d,err ret is %d\r\n",page,op,ret);
+				printk("org_slice %p count %d,mapcount %d\r\n",page,atomic_read(&page->_count),atomic_read(&page->_mapcount));
+				printk("delete thread erro code is %d\r\n",spt_get_errno());
+				
 				for(i =0 ; i < 10; i++)
 				{
 	           	    preempt_enable();
@@ -520,16 +516,43 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 					{
 						printk("rdelete ok cnt is %d\r\n",i);
 						print_debug_path(g_thrd_id);
+						atomic64_sub(1 ,(atomic64_t*)&delete_sd_tree_no_found);
 						break;
 					}
 				}
+			}
+			else
+			{
+				 ret = spt_get_errno();
+				 if(ret == SPT_MASKED)
+				 {
+					spt_thread_start(g_thrd_id);
+					spt_thread_exit(g_thrd_id);
+					preempt_enable();
+					goto try_again;
+				 }
+				 else if (ret == SPT_WAIT_AMT)
+				 {
+					spt_thread_start(g_thrd_id);
+					spt_thread_exit(g_thrd_id);
+					preempt_enable();
+					goto try_again;
+				 }
+				 else if(ret == SPT_NOMEM)
+				 {
+					BUG();
+				 }
+				 else
+				 {
+					BUG();
+				}	
 			}
 		}
 		else
 		{
 			atomic64_add(1,(atomic64_t*)&delete_sd_tree_ok);
 		}
-
+		
 		preempt_enable();
 	}
 	return ret;
