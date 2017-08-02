@@ -661,6 +661,7 @@ unsigned int db_alloc_from_buf(cluster_head_t *pclst, int thread_id, spt_dh **db
     pthrd_data->data_cnt--;
     pthrd_data->data_list_cnt--;
     vec_free(pclst, list_vec_id);
+    pthrd_data->vec_cnt --;
     return ret_id;
 } 
 
@@ -947,6 +948,7 @@ void db_buf_free(cluster_head_t *pclst, int thread_id)
         tmp_id = list_vec_id;
         list_vec_id = pnode->next;
         vec_free(pclst, tmp_id);
+        pthrd_data->vec_cnt --;
         pthrd_data->data_list_cnt--;
         pthrd_data->data_cnt --;
     }
@@ -1009,6 +1011,7 @@ void db_free_to_buf_simple(cluster_head_t *pclst, int id, int thread_id)
     }
     pthrd_data->data_list_cnt++;
     pthrd_data->data_cnt ++;
+    pthrd_data->vec_cnt ++;
     atomic_sub(1, (atomic_t *)&pclst->data_total);
 
     return;
@@ -1039,6 +1042,7 @@ int db_free_to_buf(cluster_head_t *pclst, int id, int thread_id)
     }
     pthrd_data->data_list_cnt++;
     pthrd_data->data_cnt ++;
+    pthrd_data->vec_cnt ++;
     atomic_sub(1, (atomic_t *)&pclst->data_total);
 
     if(pthrd_data->data_list_cnt > SPT_BUF_DATA_WATERMARK)

@@ -2003,6 +2003,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         preempt_enable();
     }
     pdinfo->up_vb_arr[loop-1] = 0;
+    list_add(&pdst_clst->c_list, &pclst->c_list);
     /*释放资源，虚拟挡板的释放由cluster的缓冲区中来做*/
     spt_divided_info_free(pdinfo);
     spt_order_array_free(psort);
@@ -4313,6 +4314,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
                             spt_upper_construct_data);
     if(pclst == NULL)
         return NULL;
+    INIT_LIST_HEAD(&pclst->c_list);
 
     plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                 pf_free, pf_con);
@@ -4335,6 +4337,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     memset(pdh_ext->data, 0xff, DATA_SIZE);
 
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
+    list_add(&plower_clst->c_list, &pclst->c_list);
 
 
     plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
@@ -4358,6 +4361,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     *pdata = 8192;
 
     do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
+    list_add(&plower_clst->c_list, &pclst->c_list);
 
 	plow_clst = plower_clst;
     
@@ -4387,6 +4391,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
 		get_random_bytes(pdh_ext->data,DATA_SIZE);
         pdh_ext->plower_clst = plower_clst;
         do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
+        list_add(&plower_clst->c_list, &pclst->c_list);
     }
     //debug_cluster_travl(pclst);
     return pclst;
@@ -6606,6 +6611,31 @@ void debug_buf_free(cluster_head_t *pclst)
     }
     debug_travl_stack_destroy(pstack);
     return ;
+}
+void debug_cluster_info_show(cluster_head_t *pclst)
+{
+    int data_cnt,vec_cnt;
+    data_cnt = debug_thrd_data_statistic(pclst);
+    vec_cnt = debug_thrd_vec_statistic(pclst);
+    printk("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d [data_used]:%d\r\n", 
+    pclst, data_cnt, vec_cnt, pclst->used_vec_cnt, pclst->used_dblk_cnt);
+}
+
+void debug_lower_cluster_info_show(void)
+{
+    struct list_head *list_itr;
+    cluster_head_t *pclst;
+    int i=0;
+
+    printk("\r\n==============cluster info show==============================\r\n");
+    list_for_each(list_itr, &pgclst->c_list)
+    {
+        pclst = list_entry(list_itr, struct cluster_head, c_list);
+        printk("[cluster %d]",i);
+        debug_cluster_info_show(pclst);
+        i++;
+    }
+    printk("\r\n==============cluster info end==============================\r\n");
 }
 
 int debug_upper_delete(cluster_head_t *pclst, char *pdata)

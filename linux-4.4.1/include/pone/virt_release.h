@@ -31,7 +31,7 @@ struct virt_mem_pool
 {
 	unsigned long long magic;
 	int  pool_id;
-	char mem_ind[64];
+	unsigned long long mem_ind;
 	unsigned long long hva;
 	struct virt_mem_args args;
 	unsigned long long desc_max;
@@ -52,7 +52,7 @@ struct virt_mem_pool
 
 struct virt_release_mark
 {
-	char desc[64];
+	unsigned long long desc;
 	int pool_id;
 	unsigned long long alloc_id;
 };

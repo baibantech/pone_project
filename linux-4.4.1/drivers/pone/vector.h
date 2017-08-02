@@ -4,6 +4,7 @@
 #include <linux/kernel.h>
 #include <linux/atomic.h>
 #include <linux/percpu.h>
+#include <linux/list.h>
 
 #define SPT_VEC_RIGHT 0
 #define SPT_VEC_DATA 1
@@ -163,6 +164,7 @@ typedef struct spt_vec_t
 
 typedef struct cluster_head
 {
+    struct list_head c_list;
     int vec_head;
     volatile unsigned int vec_free_head;
     volatile unsigned int dblk_free_head;

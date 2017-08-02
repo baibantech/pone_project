@@ -218,6 +218,7 @@ int slice_file_info_get(char *buf)
 	return 0;
 }
 
+extern void debug_lower_cluster_info_show(void);
 
 static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
@@ -346,6 +347,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"tree page free  cnt: %lld\r\n",page_free_cnt);
 
 	len += slice_file_info_get(buf+len);
+    
+    debug_lower_cluster_info_show();
 	return len;
 
 }
@@ -439,7 +442,6 @@ PONE_ATTR(pone_debug);
 extern void add_slice_volatile_cnt_test(unsigned int nid,unsigned long slice_id);
 extern int slice_debug_area_show(void);
 extern void print_host_virt_mem_pool(void);
-extern void walk_guest_mem_pool(void);
 extern void show_slice_volatile_cnt(void);
 extern void show_pone_time_stat(void);
 extern void spt_threadinfo_show(void);
@@ -448,7 +450,6 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	//slice_debug_area_show();
 	printk_debug_map_cnt();
 	print_host_virt_mem_pool();	
-	walk_guest_mem_pool();
 	if(release_merge_page)
 	{
 		printk("release page count %d\r\n",page_count(release_merge_page));

@@ -14,7 +14,6 @@
 
 extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
-char* release_dsc = "page can release xxx";
 struct page *release_merge_page = NULL;
 
 
@@ -30,7 +29,7 @@ EXPORT_SYMBOL(guest_page_clear_ok);
 
 int guest_page_no_need_clear = 0; 
 EXPORT_SYMBOL(guest_page_no_need_clear);
-
+unsigned long long release_dsc = 0xABCDEF00AABBCC55ULL;
 
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
 unsigned long mark_release_count= 0;
@@ -98,7 +97,7 @@ int virt_mark_page_release(struct page *page)
 		mark->pool_id = pool_id;
 		mark->alloc_id = idx;
 		barrier();
-		strcpy(mark->desc,guest_mem_pool->mem_ind);
+		mark->desc = guest_mem_pool->mem_ind;
 		barrier();
 		kunmap_atomic(mark);
 
@@ -110,7 +109,7 @@ int virt_mark_page_release(struct page *page)
 		mark->pool_id = MEM_POOL_MAX +1;
 		mark->alloc_id = guest_mem_pool->desc_max +1;
 		barrier();
-		strcpy(mark->desc,guest_mem_pool->mem_ind);
+		mark->desc = guest_mem_pool->mem_ind;
 		barrier();
 		kunmap_atomic(mark);
 	}
@@ -136,7 +135,7 @@ int virt_mark_page_alloc(struct page *page)
 	atomic64_add(1,(atomic64_t*)&guest_mem_pool->debug_a_begin);
 	mark =kmap_atomic(page);
 
-	if(0 == strcmp(mark->desc,guest_mem_pool->mem_ind))
+	if(mark->desc == guest_mem_pool->mem_ind)
 	{
 		if(mark->pool_id == guest_mem_pool->pool_id)
 		{
@@ -153,7 +152,7 @@ int virt_mark_page_alloc(struct page *page)
 					}
 					else
 					{
-						while(mark->desc[0] != '0')
+						while(mark->desc != 0)
 						{
 							barrier();
 						}
@@ -266,39 +265,12 @@ int virt_mem_release_init(void)
 	
 	return -1;
 }
-void walk_guest_mem_pool(void)
-{
-	int i = 0;
-	void *page_addr = NULL;
-	if(NULL == guest_mem_pool)
-	{
-		return ;
-	}
-	
-	for(i = 0; i <guest_mem_pool->desc_max; i++)
-	{
-		unsigned long long gfn = guest_mem_pool->desc[i];
-		if(gfn !=0)
-		{
-			page_addr = kmap_atomic(pfn_to_page(gfn));
-			if(0 == strcmp(page_addr,guest_mem_pool->mem_ind))
-			{
-			
-			}
-			else
-			{
-				printk("page_addr mem is %d\r\n",*(int*)page_addr);
-			}
-			kunmap_atomic(page_addr);
-		}
-	}
-}
  
 void print_virt_mem_pool(struct virt_mem_pool *pool)
 {
 	printk("magic is 0x%llx\r\n",pool->magic);
 	printk("pool_id is %d\r\n",pool->pool_id);
-	printk("mem_ind  is %s\r\n",pool->mem_ind);
+	printk("mem_ind  is %llx\r\n",pool->mem_ind);
 	printk("hva is 0x%llx\r\n",pool->hva);
 	printk("args mm  is %p\r\n",pool->args.mm);
 	printk("args vma  is %p\r\n",pool->args.vma);
@@ -414,7 +386,7 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 			continue;
 		}
 		pool->pool_id = i;
-		strcpy(pool->mem_ind,release_dsc);
+		pool->mem_ind = release_dsc;
 		mem_pool_addr[i] = kmalloc(sizeof(struct virt_mem_pool),GFP_KERNEL);
 		if(mem_pool_addr[i])
 		{
@@ -478,7 +450,7 @@ int is_virt_page_release(struct virt_release_mark *mark)
 	{
 		return 1;
 	}
-	if((0 == strcmp(mark->desc,release_dsc))&&(mark->pool_id < MEM_POOL_MAX))
+	if((mark->desc == release_dsc)&&(mark->pool_id < MEM_POOL_MAX))
 	{
 		return 0;
 	}
