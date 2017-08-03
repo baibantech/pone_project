@@ -13,6 +13,8 @@
 #include <linux/cpumask.h>
 #include <linux/kvm_host.h>
 #include "virt_release_m.h"
+#include "vector.h"
+#include "chunk.h"
 
 MODULE_LICENSE("GPL");
 dev_t virt_release_dev;
@@ -151,17 +153,142 @@ void virt_release_dev_exit(void)
     class_destroy(virt_release_class);    
     return;    
 }
+char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id)
+{
+    int ptrs_bit = pclst->pg_ptr_bits;
+    int ptrs = (1 << ptrs_bit);
+    u64 direct_pgs = CLST_NDIR_PGS;
+    u64 indirect_pgs = 1<<ptrs_bit;
+    u64 double_pgs = 1<<(ptrs_bit*2);
+    int pg_id = id >> pclst->blk_per_pg_bits;
+    int offset;
+    char *page, **indir_page, ***dindir_page;
 
+    if(pg_id < direct_pgs)
+    {
+        page = (char *)pclst->pglist[pg_id];
+        while(page == 0)
+        {
+            smp_mb();
+            page = (char *)atomic64_read((atomic64_t *)&pclst->pglist[pg_id]);
+        }
+    }
+    else if((pg_id -= direct_pgs) < indirect_pgs)
+    {
+        indir_page = (char **)pclst->pglist[CLST_IND_PG];
+        while(indir_page == NULL)
+        {
+            smp_mb();
+            indir_page = (char **)atomic64_read((atomic64_t *)&pclst->pglist[CLST_IND_PG]);
+        }
+        offset = pg_id;
+        page = indir_page[offset];
+        while(page == 0)
+        {
+            smp_mb();
+            page = (char *)atomic64_read((atomic64_t *)&indir_page[offset]);
+        }        
+    }
+    else if((pg_id -= indirect_pgs) < double_pgs)
+    {
+        dindir_page = (char ***)pclst->pglist[CLST_DIND_PG];
+        while(dindir_page == NULL)
+        {
+            smp_mb();
+            dindir_page = (char ***)atomic64_read((atomic64_t *)&pclst->pglist[CLST_DIND_PG]);
+        }
+        offset = pg_id >> ptrs_bit;
+        indir_page = dindir_page[offset];
+        while(indir_page == 0)
+        {
+            smp_mb();
+            indir_page = (char **)atomic64_read((atomic64_t *)&dindir_page[offset]);
+        }         
+        offset = pg_id & (ptrs-1);
+        page = indir_page[offset];
+        while(page == 0)
+        {
+            smp_mb();
+            page = (char *)atomic64_read((atomic64_t *)&indir_page[offset]);
+        }
+    }
+    else
+    {
+        printk("warning: %s: id is too big\r\n", __func__);
+        while(1);
+        return 0;
+    }
+    
+    offset = id & (pclst->blk_per_pg-1);
+    return    page + (offset << BLK_BITS); 
+    
+}
+
+char* db_id_2_ptr(cluster_head_t *pclst, unsigned int id)
+{
+    return blk_id_2_ptr(pclst, id/pclst->db_per_blk) + id%pclst->db_per_blk * DBLK_SIZE;
+    
+}
+
+char* vec_id_2_ptr(cluster_head_t *pclst, unsigned int id)
+{
+    return blk_id_2_ptr(pclst, id/pclst->vec_per_blk) + id%pclst->vec_per_blk * VBLK_SIZE;
+    
+}
 
 
 static int __init virt_release_mem_init(void) {
-    virt_release_dev_init();
+    //virt_release_dev_init();
+    cluster_head_t *pclst = (cluster_head_t *)0xffff88405f73f000ull;
+    spt_vec *pvec;
+    int blk_id, id, db_id, i;
+    spt_dh *pdh;
+    spt_thrd_data *pthrd_data;
+    u32 list_vec_id, ret_id;
+    spt_buf_list *pnode;
+    db_head_t *db;
+
+    while(id = pclst->dblk_free_head != -1)
+    {
+        pdh = (spt_dh *)blk_id_2_ptr(pclst, id/pclst->db_per_blk);
+        db = pdh;
+        for(i = 0; i < pclst->db_per_blk; i++)
+        {
+            if(pdh->ref != 0 && db->magic!= 0xdeadbeef)
+            {
+                printk("pdh ref:%d, data:%p\r\n", pdh->ref, pdh->pdata);
+                return 0;
+            }
+            pdh++;
+        }
+    }
+    for(i=0;i<pclst->thrd_total;i++)
+    {
+        pthrd_data = &pclst->thrd_data[i];
+        list_vec_id = pthrd_data->data_alloc_out;
+        while(list_vec_id != SPT_NULL)
+        {
+            pnode = (spt_buf_list *)vec_id_2_ptr(pclst,list_vec_id);
+            pdh = (spt_dh *)blk_id_2_ptr(pclst, pnode->id/pclst->db_per_blk);
+            for(i = 0; i < pclst->db_per_blk; i++)
+            {
+                if(pdh->ref != 0)
+                {
+                    printk("pdh ref:%d, data:%p\r\n", pdh->ref, pdh->pdata);
+                    return 0;
+                }
+                pdh++;
+            }
+            list_vec_id = pnode->next;
+        }
+    }
+
     return 0;
 }
 
 
 static void __exit virt_release_mem_exit(void) {
-    virt_release_dev_exit();
+    //virt_release_dev_exit();
 }
 
 module_init(virt_release_mem_init);

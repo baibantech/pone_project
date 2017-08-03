@@ -494,9 +494,6 @@ out:
 	return anon_vma;
 }
 
-#ifdef CONFIG_PONE_MODULE
-EXPORT_SYMBOL(page_get_anon_vma);
-#endif
 
 /*
  * Similar to page_get_anon_vma() except it locks the anon_vma.
@@ -566,10 +563,6 @@ out:
 	rcu_read_unlock();
 	return anon_vma;
 }
-
-#ifdef CONFIG_PONE_MODULE
-EXPORT_SYMBOL(page_lock_anon_vma_read);
-#endif
 
 void page_unlock_anon_vma_read(struct anon_vma *anon_vma)
 {
@@ -802,9 +795,6 @@ check:
 	return NULL;
 }
 
-#ifdef CONFIG_PONE_MODULE
-EXPORT_SYMBOL(__page_check_address);
-#endif
 
 /**
  * page_mapped_in_vma - check whether a page is really mapped in a VMA
@@ -1166,9 +1156,6 @@ void page_add_anon_rmap(struct page *page,
 #endif
 }
 
-#ifdef CONFIG_PONE_MODULE
-EXPORT_SYMBOL(page_add_anon_rmap);
-#endif
 
 /*
  * Special version of the above for do_swap_page, which often runs
@@ -1323,9 +1310,6 @@ pre_fix_slice_check(page);
 	 */
 }
 
-#ifdef CONFIG_PONE_MODULE
-EXPORT_SYMBOL(page_remove_rmap);
-#endif
 
 /*
  * @arg: enum ttu_flags will be passed to this argument
@@ -1760,7 +1744,7 @@ void hugepage_add_new_anon_rmap(struct page *page,
 }
 #endif /* CONFIG_HUGETLB_PAGE */
 
-#ifdef CONFIG_PONE_MODULE
+#if 0
 unsigned long long pte_err1;
 unsigned long long pte_err2;
 unsigned long long pte_err3;

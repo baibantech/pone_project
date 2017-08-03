@@ -383,6 +383,8 @@ extern unsigned long long debug_refind_max[48];
 extern unsigned long long map_cnt_max[48];
 extern int thread_map_cnt[64];
 extern int thread_zero_cnt[64];
+extern struct page* page_delete_failed[128];
+extern void redelete_sd_tree(struct page *page);
 static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	//debug_mm_pte();
@@ -411,6 +413,15 @@ static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr
 	debug_statistic(pgclst);
 	
 	debug_cluster_travl(plow_clst);
+
+	for(i = 0; i < 128 ;i++)
+	{
+		if(page_delete_failed[i]!= 0)
+		{	
+			redelete_sd_tree(page_delete_failed[i]);
+		}
+	}
+
 	return sprintf(buf,"%ld",pone_file_watch);
 
 }

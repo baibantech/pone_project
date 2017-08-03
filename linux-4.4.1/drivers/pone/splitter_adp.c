@@ -454,6 +454,22 @@ void slice_data_cmp(void *data,unsigned int lineno)
 }
 extern void printk_debug_map_cnt_id(int);
 extern void print_debug_path(int id);
+
+struct page* page_delete_failed[128] = {NULL};
+
+void  redelete_sd_tree(struct page *page)
+{
+	int ret = -1;
+	if(page)
+	{
+		preempt_disable();
+		spt_thread_start(g_thrd_id);
+		ret =  delete_data(pgclst,page);
+		spt_thread_exit(g_thrd_id);
+		preempt_enable();
+		printk("redelete page %p ,ret %d .err_code %d\r\n",page,ret ,spt_get_errno());
+	}
+}
 int delete_sd_tree(unsigned long slice_idx,int op)
 {
 	struct page *page = pfn_to_page(slice_idx);
@@ -461,6 +477,7 @@ int delete_sd_tree(unsigned long slice_idx,int op)
 	int cpu = smp_processor_id();
 	void *page_addr = NULL;
 	int i = 0;
+	unsigned long long no_found_id = 0;
 	if(page)
 	{
 try_again:
@@ -479,10 +496,10 @@ try_again:
 			{
 				printk_debug_map_cnt_id(g_thrd_id);
 				
-				atomic64_add(1 ,(atomic64_t*)&delete_sd_tree_no_found);
+				no_found_id = atomic64_add_return(1 ,(atomic64_t*)&delete_sd_tree_no_found);
 				//if(-10000 == ret)
 				//	print_debug_path(g_thrd_id);
-
+				
 				page_addr = kmap_atomic(page);
 				printk("\r\n");
 				if(-10000 == ret)
@@ -518,6 +535,13 @@ try_again:
 						print_debug_path(g_thrd_id);
 						atomic64_sub(1 ,(atomic64_t*)&delete_sd_tree_no_found);
 						break;
+					}
+				}
+				if( 10 == i) /*redelete fail*/
+				{
+					if(no_found_id <= 128)
+					{
+						page_delete_failed[no_found_id -1] = page;							
 					}
 				}
 			}
