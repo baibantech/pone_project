@@ -9,7 +9,9 @@
 #include <linux/mm.h>
 #include <linux/rwsem.h>
 #include <linux/memcontrol.h>
-
+#ifdef CONFIG_PONE_MODULE
+#include <pone/pone_linux_adp.h>
+#endif
 /*
  * The anon_vma heads a list of private "related" vmas, to scan if
  * an anonymous page pointing to this anon_vma needs to be unmapped:
@@ -182,8 +184,7 @@ static inline void page_dup_rmap(struct page *page)
 {
 	atomic_inc(&page->_mapcount);
 	#ifdef CONFIG_PONE_MODULE
-	extern void slice_mapcount_add_process(void *data);
-	slice_mapcount_add_process(page);
+	PONE_RUN(pone_page_add_mapcount,page);
 	#endif
 }
 

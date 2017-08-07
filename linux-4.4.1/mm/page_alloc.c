@@ -68,6 +68,7 @@
 #include <asm/div64.h>
 
 #ifdef CONFIG_PONE_MODULE
+#include <pone/pone_linux_adp.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
 #include <pone/virt_release.h>
@@ -974,10 +975,14 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 #ifdef CONFIG_PONE_MODULE
 	barrier();
 	for (i = 0; i < (1 << order); i++) {
-		if(0 != process_slice_state(page_to_pfn(page+i),SLICE_FREE,page+i,-1))  
-		{	
-			return false;
+		if(PONE_ERR ==  PONE_RUN(pone_page_free_check,page+i))
+		{
+			bad++;
 		}
+	}
+	if(bad)
+	{
+		return false;
 	}
 #endif
 

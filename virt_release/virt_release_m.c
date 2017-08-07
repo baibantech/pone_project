@@ -167,54 +167,67 @@ char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id)
     if(pg_id < direct_pgs)
     {
         page = (char *)pclst->pglist[pg_id];
-        while(page == 0)
+        if(page == 0)
         {
             smp_mb();
             page = (char *)atomic64_read((atomic64_t *)&pclst->pglist[pg_id]);
+            printk("blk_id_2_ptr,line[%d] id %d\r\n",__LINE__, id);
+            return 0;
         }
     }
     else if((pg_id -= direct_pgs) < indirect_pgs)
     {
         indir_page = (char **)pclst->pglist[CLST_IND_PG];
-        while(indir_page == NULL)
+        if(indir_page == NULL)
         {
             smp_mb();
             indir_page = (char **)atomic64_read((atomic64_t *)&pclst->pglist[CLST_IND_PG]);
+            printk("blk_id_2_ptr,line[%d] id %d\r\n",__LINE__, id);
+            return 0;
         }
         offset = pg_id;
         page = indir_page[offset];
-        while(page == 0)
+        if(page == 0)
         {
             smp_mb();
             page = (char *)atomic64_read((atomic64_t *)&indir_page[offset]);
+            printk("blk_id_2_ptr,line[%d] id %d\r\n",__LINE__, id);
+            return 0;
         }        
     }
     else if((pg_id -= indirect_pgs) < double_pgs)
     {
         dindir_page = (char ***)pclst->pglist[CLST_DIND_PG];
-        while(dindir_page == NULL)
+        if(dindir_page == NULL)
         {
             smp_mb();
             dindir_page = (char ***)atomic64_read((atomic64_t *)&pclst->pglist[CLST_DIND_PG]);
+            printk("blk_id_2_ptr,line[%d] id %d\r\n",__LINE__, id);
+            return 0;
         }
         offset = pg_id >> ptrs_bit;
         indir_page = dindir_page[offset];
-        while(indir_page == 0)
+        if(indir_page == 0)
         {
             smp_mb();
             indir_page = (char **)atomic64_read((atomic64_t *)&dindir_page[offset]);
+            printk("blk_id_2_ptr,line[%d] id %d\r\n",__LINE__, id);
+            return 0;
         }         
         offset = pg_id & (ptrs-1);
         page = indir_page[offset];
-        while(page == 0)
+        if(page == 0)
         {
             smp_mb();
             page = (char *)atomic64_read((atomic64_t *)&indir_page[offset]);
+            printk("blk_id_2_ptr,line[%d] id %d\r\n",__LINE__, id);
+            return 0;
         }
     }
     else
     {
         printk("warning: %s: id is too big\r\n", __func__);
+        return 0;
         while(1);
         return 0;
     }
@@ -226,20 +239,26 @@ char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id)
 
 char* db_id_2_ptr(cluster_head_t *pclst, unsigned int id)
 {
-    return blk_id_2_ptr(pclst, id/pclst->db_per_blk) + id%pclst->db_per_blk * DBLK_SIZE;
+    char *p = blk_id_2_ptr(pclst, id/pclst->db_per_blk);
+    if(p == 0)
+        return 0;
+    return p + id%pclst->db_per_blk * DBLK_SIZE;
     
 }
 
 char* vec_id_2_ptr(cluster_head_t *pclst, unsigned int id)
 {
-    return blk_id_2_ptr(pclst, id/pclst->vec_per_blk) + id%pclst->vec_per_blk * VBLK_SIZE;
+    char *p = blk_id_2_ptr(pclst, id/pclst->vec_per_blk);
+    if(p == 0)
+        return 0;
+    return p + id%pclst->vec_per_blk * VBLK_SIZE;
     
 }
 
 
 static int __init virt_release_mem_init(void) {
     //virt_release_dev_init();
-    cluster_head_t *pclst = (cluster_head_t *)0xffff88405f73f000ull;
+    cluster_head_t *pclst = (cluster_head_t *)0xffff88405f30e000ull;
     spt_vec *pvec;
     int blk_id, id, db_id, i;
     spt_dh *pdh;
@@ -247,21 +266,40 @@ static int __init virt_release_mem_init(void) {
     u32 list_vec_id, ret_id;
     spt_buf_list *pnode;
     db_head_t *db;
+    int cnt = 0;
 
-    while(id = pclst->dblk_free_head != -1)
+    id = pclst->dblk_free_head;
+    printk("\r\n===========================\r\n");
+    printk("free db:%d free vec:%d\r\n", pclst->free_dblk_cnt, pclst->free_vec_cnt);
+#if 1
+    while(id != -1)
     {
         pdh = (spt_dh *)blk_id_2_ptr(pclst, id/pclst->db_per_blk);
+        if(pdh == 0)
+        {
+            printk("%s\t%d\r\n", __FUNCTION__, __LINE__);
+            return 0;
+        }
+        
         db = pdh;
         for(i = 0; i < pclst->db_per_blk; i++)
         {
-            if(pdh->ref != 0 && db->magic!= 0xdeadbeef)
+            if(pdh->ref != 0 && ((db_head_t *)pdh)->magic!= 0xdeadbeef)
             {
                 printk("pdh ref:%d, data:%p\r\n", pdh->ref, pdh->pdata);
                 return 0;
             }
             pdh++;
         }
+        id = db->next;
+        cnt++;
+        if(cnt >= 0x10000)
+        {
+            printk("why?????\r\n");
+            break;
+        }
     }
+    cnt = 0;
     for(i=0;i<pclst->thrd_total;i++)
     {
         pthrd_data = &pclst->thrd_data[i];
@@ -269,7 +307,18 @@ static int __init virt_release_mem_init(void) {
         while(list_vec_id != SPT_NULL)
         {
             pnode = (spt_buf_list *)vec_id_2_ptr(pclst,list_vec_id);
+            if(pnode == 0)
+            {
+                printk("%s\t%d\r\n", __FUNCTION__, __LINE__);
+                return 0;
+            }
             pdh = (spt_dh *)blk_id_2_ptr(pclst, pnode->id/pclst->db_per_blk);
+            if(pdh == 0)
+            {
+                printk("%s\t%d\r\n", __FUNCTION__, __LINE__);
+                return 0;
+            }
+            
             for(i = 0; i < pclst->db_per_blk; i++)
             {
                 if(pdh->ref != 0)
@@ -280,9 +329,15 @@ static int __init virt_release_mem_init(void) {
                 pdh++;
             }
             list_vec_id = pnode->next;
+            
+            if(cnt >= 0x10000)
+            {
+                printk("why?????\r\n");
+                break;
+            }
         }
     }
-
+#endif
     return 0;
 }
 

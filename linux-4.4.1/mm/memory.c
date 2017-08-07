@@ -70,7 +70,7 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 #ifdef CONFIG_PONE_MODULE
-#include <pone/slice_state.h>
+#include <pone/pone_linux_adp.h>
 #endif
 
 #include "internal.h"
@@ -2006,10 +2006,6 @@ static inline int wp_page_reuse(struct mm_struct *mm,
 	 * information potentially belongs to a now completely
 	 * unrelated process.
 	 */
-#ifdef CONFIG_PONE_MODULE
-	if(page)
-		process_slice_state(page_to_pfn(page),SLICE_CHANGE,page,-1);	
-#endif
 	if (page)
 		page_cpupid_xchg_last(page, (1 << LAST_CPUPID_SHIFT) - 1);
 
@@ -2166,16 +2162,7 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		/* Free the old page.. */
 		new_page = old_page;
 		page_copied = 1;
-		#ifdef CONFIG_PONE_MODULE
-		if(process_slice_check())
-		{
-			if(op_page&&page_copied)
-			{
-				mark_volatile_cnt_in_wcopy(page_to_pfn(old_page),page_to_pfn(op_page));
 
-			}
-		}
-		#endif	
 	
 	} else {
 		mem_cgroup_cancel_charge(new_page, memcg);
@@ -2187,12 +2174,9 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 	pte_unmap_unlock(page_table, ptl);
 
 	#ifdef CONFIG_PONE_MODULE
-	if(process_slice_check())
+	if(op_page&&page_copied)
 	{
-		if(op_page&&page_copied)
-		{
-			process_slice_state(page_to_pfn(op_page),SLICE_ALLOC,op_page,address>>22);
-		}
+		PONE_RUN(pone_wp_new_page,op_page);
 	}
 	#endif
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
@@ -2784,14 +2768,8 @@ setpte:
 unlock:
 	pte_unmap_unlock(page_table, ptl);
 #if CONFIG_PONE_MODULE
-	if(process_slice_check())
-	{
-		if(vma->vm_flags &VM_MERGEABLE)
-		{
-			if(new) 
-			process_slice_state(page_to_pfn(page),SLICE_ALLOC,page,address>>22);
-		}
-		}
+	if(new) 
+		PONE_RUN(pone_anonymous_new_page ,page);
 #endif
 	return 0;
 release:
