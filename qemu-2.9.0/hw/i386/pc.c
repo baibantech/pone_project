@@ -1555,7 +1555,7 @@ void pc_memory_init(PCMachineState *pcms,
     pcms->ioapic_as = &address_space_memory;
 }
 #else
-#define PC_RESERVE_MEM_SIZE (0x10000000ULL)
+#define PC_RESERVE_MEM_SIZE (0x4000000ULL)
 void pc_memory_init(PCMachineState *pcms,
                     MemoryRegion *system_memory,
                     MemoryRegion *rom_memory,

@@ -14,7 +14,7 @@
 #include <linux/pagemap.h>
 #include <linux/mmu_notifier.h>
 #include <linux/swap.h>
-#define MEM_POOL_MAX 32
+#define MEM_POOL_MAX 256
 struct virt_mem_args
 {
 	struct mm_struct *mm;

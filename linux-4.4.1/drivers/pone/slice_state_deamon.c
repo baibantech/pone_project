@@ -69,7 +69,6 @@ unsigned long long get_slice_volatile_cnt(unsigned int nid ,unsigned long slice_
 	state_unit = *(deamon_volatile->slice_node[nid].slice_state_map + (slice_id/SLICE_NUM_PER_UNIT));
     offset = slice_id%SLICE_NUM_PER_UNIT;
     return  (state_unit >> (offset * SLICE_STATE_BITS))&SLICE_STATE_MASK;
-
 }
 
 unsigned long long change_slice_volatile_cnt(unsigned int nid , unsigned long slice_id,unsigned long long old_cnt,unsigned long long new_cnt)
@@ -512,6 +511,7 @@ retry:
 					{
 						slice_deamon_in_que_fail++;
 						wakeup_splitter_thread_by_que(que_id);
+#if 0
 						end_jiffies = get_jiffies_64();
 						cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
 						if(cost_time >deamon_scan_period)
@@ -520,25 +520,17 @@ retry:
 							msleep(deamon_scan_period);
 							start_jiffies = get_jiffies_64();
 						}
-						msleep(1);
+#endif
+						schedule();
 						goto retry;
 					}
-					#if 0
-					volatile_count++; 
-					if(0 == (volatile_count%1000))
-					{
-						lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
-						splitter_thread_wakeup();		
-					}
-#endif
 				}
 
 			}
-
 		}
 		
 		end_jiffies = get_jiffies_64();
-
+		
 		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
 		deamon_sleep_period_in_loop++;
 		if(cost_time >deamon_scan_period)
@@ -551,13 +543,6 @@ retry:
 			msleep(deamon_scan_period - cost_time);
 		}
 
-#if 0
-		if(0 == volatile_count)		
-		{
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule();
-		}
-#endif
 
 	}while(!kthread_should_stop());
 	return 0;

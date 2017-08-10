@@ -34,6 +34,7 @@ unsigned long long release_dsc = 0xABCDEF00AABBCC55ULL;
 struct virt_mem_pool *mem_pool_addr[MEM_POOL_MAX] = {0};
 unsigned long mark_release_count= 0;
 unsigned long mark_alloc_count = 0;
+#if 0
 int is_virt_mem_pool_page(struct mm_struct *mm, unsigned long address)
 {
 	int i = 0;
@@ -58,7 +59,7 @@ int is_virt_mem_pool_page(struct mm_struct *mm, unsigned long address)
 	return 0;
 
 }
-
+#endif
 int virt_mark_page_release(struct page *page)
 {
 	int pool_id ;
@@ -204,12 +205,12 @@ int virt_mem_guest_init(void)
 	printk("io reserve mem add is 0x%llx\r\n",io_reserve_mem);
 	if(io_reserve_mem != 0xFFFFFFFF)
 	{
-		ptr = ioremap(io_reserve_mem <<12 , 0x10000000);
+		ptr = ioremap(io_reserve_mem <<12 , 0x4000000);
 		printk("ptr remap addr is %p\r\n",ptr);
 		if(ptr != NULL)
 		{
 			
-			init_guest_mem_pool(ptr,0x10000000); 
+			init_guest_mem_pool(ptr,0x4000000); 
 			print_virt_mem_pool(ptr);
 			
 			iowrite32(io_reserve_mem, ioaddr);
