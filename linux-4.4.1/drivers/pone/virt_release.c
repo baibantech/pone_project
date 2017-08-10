@@ -243,7 +243,7 @@ int virt_mem_release_init(void)
 
 			nid = slice_idx_to_node(page_to_pfn(release_merge_page));
 			slice_id = slice_nr_in_node(nid,page_to_pfn(release_merge_page));
-			if(0 != change_slice_state(nid,slice_id,SLICE_NULL,SLICE_ENQUE))
+			if(0 != change_slice_state(nid,slice_id,SLICE_NULL,SLICE_CHG))
 			{
 				printk("BUG in virt mem release\r\n");
 				return -1;

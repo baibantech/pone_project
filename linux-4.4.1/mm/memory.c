@@ -70,6 +70,7 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 #ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
 #include <pone/pone_linux_adp.h>
 #endif
 
@@ -2162,6 +2163,13 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		/* Free the old page.. */
 		new_page = old_page;
 		page_copied = 1;
+#ifdef CONFIG_PONE_MODULE
+		if(op_page && page_copied)
+		{
+			PONE_RUN_2(pone_page_mark_volatile_cnt,old_page,op_page) ;
+			//pone_slice_mark_volatile_cnt(old_page,op_page);
+		}
+#endif
 
 	
 	} else {
@@ -2177,6 +2185,7 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 	if(op_page&&page_copied)
 	{
 		PONE_RUN(pone_wp_new_page,op_page);
+		//pone_slice_alloc_process(op_page);
 	}
 	#endif
 	mmu_notifier_invalidate_range_end(mm, mmun_start, mmun_end);
@@ -2768,8 +2777,11 @@ setpte:
 unlock:
 	pte_unmap_unlock(page_table, ptl);
 #if CONFIG_PONE_MODULE
-	if(new) 
+	if(new)
+	{
 		PONE_RUN(pone_anonymous_new_page ,page);
+		//pone_slice_alloc_process(page);
+	}
 #endif
 	return 0;
 release:

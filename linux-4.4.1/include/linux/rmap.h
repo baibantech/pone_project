@@ -10,6 +10,7 @@
 #include <linux/rwsem.h>
 #include <linux/memcontrol.h>
 #ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
 #include <pone/pone_linux_adp.h>
 #endif
 /*
@@ -185,6 +186,7 @@ static inline void page_dup_rmap(struct page *page)
 	atomic_inc(&page->_mapcount);
 	#ifdef CONFIG_PONE_MODULE
 	PONE_RUN(pone_page_add_mapcount,page);
+	//pone_slice_add_mapcount_process(page);	
 	#endif
 }
 

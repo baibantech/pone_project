@@ -25,6 +25,7 @@ enum mem_slice_state
 	SLICE_IDLE,
     SLICE_ENQUE,
     SLICE_WATCH,
+	SLICE_WATCH_QUE,
     SLICE_CHG,
     SLICE_FIX,
     SLICE_VOLATILE,
@@ -93,6 +94,7 @@ extern int pone_slice_dec_mapcount_process(void *slice);
 extern int pone_slice_alloc_process(void *slice);
 extern int pone_slice_free_check_process(void *slice);
 extern int pone_slice_watched_page(void *slice);
+extern int pone_slice_can_reuse(void *slice);
 extern int pone_slice_mark_volatile_cnt(void *slice, void *slice1);
 static inline int slice_idx_to_node(unsigned long slice_idx)
 {

@@ -18,6 +18,8 @@ pone_linux_adp_func   pone_page_add_mapcount = NULL;
 pone_linux_adp_func   pone_page_dec_mapcount = NULL;
 pone_linux_adp_func   pone_page_free_check = NULL;
 pone_linux_adp_func   pone_watched_page  = NULL;
+pone_linux_adp_func   pone_page_can_reuse  = NULL;
+
 pone_linux_adp_func_2  pone_page_mark_volatile_cnt = NULL;
 
 EXPORT_SYMBOL(pone_anonymous_new_page);
@@ -26,6 +28,7 @@ EXPORT_SYMBOL(pone_page_add_mapcount);
 EXPORT_SYMBOL(pone_page_dec_mapcount);
 EXPORT_SYMBOL(pone_page_free_check);
 EXPORT_SYMBOL(pone_watched_page);
+EXPORT_SYMBOL(pone_page_can_reuse);
 EXPORT_SYMBOL(pone_page_mark_volatile_cnt);
 
 
@@ -37,5 +40,6 @@ void pone_linux_adp_init(void)
 	pone_page_dec_mapcount = pone_slice_dec_mapcount_process;;
 	pone_page_free_check = pone_slice_free_check_process;
 	pone_watched_page  = pone_slice_watched_page;
+	pone_page_can_reuse = pone_slice_can_reuse;
 	pone_page_mark_volatile_cnt = pone_slice_mark_volatile_cnt;
 }

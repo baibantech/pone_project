@@ -976,6 +976,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	barrier();
 	for (i = 0; i < (1 << order); i++) {
 		if(PONE_ERR ==  PONE_RUN(pone_page_free_check,page+i))
+		//if(PONE_ERR == pone_slice_free_check_process(page+i))
 		{
 			bad++;
 		}

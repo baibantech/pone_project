@@ -172,7 +172,6 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 	ptep = __page_try_check_address(page, mm, addr, &ptl, 0);
 	if (!ptep)
 	{
-		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_null);
 		goto out_mn;
 	}
 
@@ -197,7 +196,6 @@ int make_slice_wprotect_one(struct page *page, struct vm_area_struct *vma,
 		 */
 		if (page_mapcount(page) + swapped != page_count(page)) {
 			set_pte_at(mm, addr, ptep, entry);
-			atomic64_add(1,(atomic64_t*)&make_slice_protect_err_mapcnt);
 			goto out_unlock;
 		}
 		entry = pte_mkclean(pte_wrprotect(entry));
@@ -228,13 +226,11 @@ int make_slice_wprotect(unsigned long slice_idx)
     
     if (!page_rmapping(page))/*map_count*/
     {
-		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_map);
         return SLICE_STATUS_ERR;
     }
 
     if (!trylock_page(page))
     {
-		atomic64_add(1,(atomic64_t*)&make_slice_protect_err_lock);
         return SLICE_LOCK_ERR;
     }
 
@@ -438,7 +434,7 @@ int change_reverse_ref_one(struct page *page, struct vm_area_struct *vma,
 		flush_cache_page(vma, addr, pte_pfn(*ptep));
 		entry = ptep_clear_flush_notify(vma, addr, ptep);
 		
-		if(SLICE_WATCH != get_slice_state_by_id(page_to_pfn(page)))
+		if(SLICE_WATCH_QUE != get_slice_state_by_id(page_to_pfn(page)))
 		{
 			set_pte_at(mm, addr, ptep, entry);
 			goto out_unlock;	

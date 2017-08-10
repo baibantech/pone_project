@@ -255,55 +255,108 @@ char* vec_id_2_ptr(cluster_head_t *pclst, unsigned int id)
     
 }
 
-
 static int __init virt_release_mem_init(void) {
     //virt_release_dev_init();
-    cluster_head_t *pclst = (cluster_head_t *)0xffff88405f30e000ull;
+    cluster_head_t *pclst = (cluster_head_t *)0xffff88405f276000ull;
     spt_vec *pvec;
-    int blk_id, id, db_id, i;
+    int blk_id, id, db_id, i, j;
     spt_dh *pdh;
     spt_thrd_data *pthrd_data;
     u32 list_vec_id, ret_id;
     spt_buf_list *pnode;
     db_head_t *db;
     int cnt = 0;
+    int buf_total;
+    struct page *page;
 
     id = pclst->dblk_free_head;
     printk("\r\n===========================\r\n");
     printk("free db:%d free vec:%d\r\n", pclst->free_dblk_cnt, pclst->free_vec_cnt);
+    printk("pclst->thrd_total: %d  pg_cursor %d pg_num_total:%d\r\n", pclst->thrd_total, pclst->pg_cursor, pclst->pg_num_total);
+
+    page = (struct page *)0xffffea00f71ec8d0ull;
+    if(page->page_mem != NULL)
+    {
+        pdh = page->page_mem;
+        printk("pdh->data:%p  pdh->ref: %d\r\n", pdh->pdata, pdh->ref);
+    }
+    page = (struct page *)0xffffea00a7b5a890ull;
+    if(page->page_mem != NULL)
+    {
+        pdh = page->page_mem;
+        printk("pdh->data:%p  pdh->ref: %d\r\n", pdh->pdata, pdh->ref);
+    }
 #if 1
+    for(j=0;j<49;j++)
+    {
+        pthrd_data = &pclst->thrd_data[i];
+        list_vec_id = pthrd_data->vec_alloc_out;
+        cnt = 0;
+        while(list_vec_id != SPT_NULL)
+        {
+            pnode = (spt_buf_list *)vec_id_2_ptr(pclst,list_vec_id);
+            if(pnode == 0)
+            {
+                printk("%s\t%d\r\n", __FUNCTION__, __LINE__);
+                return 0;
+            }
+            pvec = (spt_vec *)vec_id_2_ptr(pclst, pnode->id);
+            if(pvec->rd == 1514392 || pvec->rd == 1567556)
+            {
+                printk("%s\t%d\r\n", __FUNCTION__, __LINE__);
+                printk("vec status:%d, vec type:%d, vec down:%d pos:%d\r\n", 
+                pvec->status, pvec->type, pvec->down, pvec->pos);
+                return 0;
+            }
+            
+            list_vec_id = pnode->next;
+            cnt++;
+            if(cnt > pthrd_data->vec_cnt)
+            {
+                printk("cnt %d   data_cnt  %d\r\n", cnt , pthrd_data->vec_cnt);
+                break;
+            }
+        }
+    }
+#endif
+#if 0
+    1514392
+    1567556
+
     while(id != -1)
     {
         pdh = (spt_dh *)blk_id_2_ptr(pclst, id/pclst->db_per_blk);
         if(pdh == 0)
         {
-            printk("%s\t%d\r\n", __FUNCTION__, __LINE__);
+            printk("cnt[%d] [id %d] %s\t%d\r\n",cnt, id,  __FUNCTION__, __LINE__);
             return 0;
         }
         
-        db = pdh;
+        db = (db_head_t *)db_id_2_ptr(pclst, id);
         for(i = 0; i < pclst->db_per_blk; i++)
         {
             if(pdh->ref != 0 && ((db_head_t *)pdh)->magic!= 0xdeadbeef)
             {
-                printk("pdh ref:%d, data:%p\r\n", pdh->ref, pdh->pdata);
-                return 0;
+                printk("dbid: %d ,i:%d, pdh ref:%d, data:%p\r\n",id, i, pdh->ref, pdh->pdata);
+                //return 0;
             }
             pdh++;
         }
         id = db->next;
         cnt++;
-        if(cnt >= 0x10000)
+        if(cnt > pclst->free_dblk_cnt)
         {
-            printk("why?????\r\n");
+            printk("????????????????cnt :%d\r\n");
             break;
         }
     }
+    printk("==========================free list ok\r\n");
     cnt = 0;
-    for(i=0;i<pclst->thrd_total;i++)
+    for(j=0;j<49;j++)
     {
         pthrd_data = &pclst->thrd_data[i];
         list_vec_id = pthrd_data->data_alloc_out;
+        cnt = 0;
         while(list_vec_id != SPT_NULL)
         {
             pnode = (spt_buf_list *)vec_id_2_ptr(pclst,list_vec_id);
@@ -323,21 +376,22 @@ static int __init virt_release_mem_init(void) {
             {
                 if(pdh->ref != 0)
                 {
-                    printk("pdh ref:%d, data:%p\r\n", pdh->ref, pdh->pdata);
-                    return 0;
+                    printk("dbid : %d i:%d pdh ref:%d, data:%p\r\n",pnode->id, i, pdh->ref, pdh->pdata);
+                    //return 0;
                 }
                 pdh++;
             }
             list_vec_id = pnode->next;
-            
-            if(cnt >= 0x10000)
+            cnt++;
+            if(cnt > pthrd_data->data_cnt)
             {
-                printk("why?????\r\n");
+                printk("cnt %d   data_cnt  %d\r\n", cnt , pthrd_data->data_cnt);
                 break;
             }
         }
     }
 #endif
+    printk("\r\n======init done==========\r\n");
     return 0;
 }
 

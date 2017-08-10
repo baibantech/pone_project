@@ -67,6 +67,7 @@
 
 #include "internal.h"
 #ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
 #include <pone/pone_linux_adp.h>
 #endif
 
@@ -1149,6 +1150,7 @@ void page_add_anon_rmap(struct page *page,
 	do_page_add_anon_rmap(page, vma, address, 0);
 #ifdef CONFIG_PONE_MODULE
 	if(PONE_OK == PONE_RUN(pone_watched_page,page))
+	//if(PONE_OK == pone_slice_watched_page(page))
 	{
 		atomic64_add(1,(atomic64_t*)slice_copy_pte_cnt1);
 	}
@@ -1273,6 +1275,7 @@ void page_remove_rmap(struct page *page)
 
 #ifdef CONFIG_PONE_MODULE
 	PONE_RUN(pone_page_dec_mapcount,page);
+	//pone_slice_dec_mapcount_process(page);
 #endif
 
 
@@ -1603,11 +1606,11 @@ static int rmap_walk_anon(struct page *page, struct rmap_walk_control *rwc)
 	int ret = SWAP_AGAIN;
 	#ifdef CONFIG_PONE_MODULE
 	if(PONE_OK == PONE_RUN(pone_watched_page,page))
+	//if(PONE_OK == pone_slice_watched_page(page))
 	{
 		return ret;
 	}
 	#endif
-
 
 	anon_vma = rmap_walk_anon_lock(page, rwc);
 	if (!anon_vma)

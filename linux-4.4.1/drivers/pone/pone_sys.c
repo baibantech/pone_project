@@ -27,53 +27,75 @@ extern unsigned long slice_que_debug;
 
 extern unsigned long long slice_alloc_num ;
 extern unsigned long long slice_change_volatile_ok ;
-extern unsigned long long slice_in_que_ok;
-extern unsigned long long slice_in_que_err;
 
 extern unsigned long long slice_out_que_num;
 extern unsigned long long slice_protect_err;
-extern unsigned long long make_slice_protect_err_null;
-extern unsigned long long make_slice_protect_err_nw;
-extern unsigned long long make_slice_protect_err_map;
-extern unsigned long long make_slice_protect_err_lock;
-extern unsigned long long make_slice_protect_err_mapcnt;
-extern unsigned long long rmap_get_anon_vma_err;
-extern unsigned long long rmap_lock_num_err;
-extern unsigned long long rmap_pte_null_err;
-
-extern unsigned long long slice_in_watch_que_ok;
-extern unsigned long long slice_in_watch_que_err;
+extern unsigned long long virt_page_release_merge_ok;
+extern unsigned long long virt_page_release_merge_err;
+extern unsigned long long slice_que_change_watch;
 extern unsigned long long slice_mem_que_free;
 
-extern unsigned long long slice_map_cnt_err;
+extern unsigned long long slice_out_watch_que_num;
 extern unsigned long long slice_insert_sd_tree_err;
 extern unsigned long long slice_new_insert_num ;
 extern unsigned long long slice_change_ref_err;
 extern unsigned long long slice_merge_num ;
-extern unsigned long long slice_mem_watch_free;
 
 extern unsigned long long slice_fix_free_num;
 extern unsigned long long slice_volatile_free_num;
 extern unsigned long long slice_other_free_num;
+extern unsigned long long slice_watch_free_num;
 extern unsigned long long slice_sys_free_num;
 
-extern unsigned long long slice_mem_watch_change ;
-extern unsigned long long slice_mem_fix_change;
+extern unsigned long long slice_mem_watch_reuse ;
 
-extern unsigned long long slice_volatile_in_que_ok;
-extern unsigned long long slice_volatile_in_que_err;
 extern unsigned long long slice_deamon_find_volatile;
+extern unsigned long long slice_deamon_find_watch;
 extern unsigned long long slice_deamon_in_que_fail;
+
+
+unsigned long long slice_alloc_num_bak ;
+unsigned long long slice_change_volatile_ok_bak ;
+
+unsigned long long slice_out_que_num_bak;
+unsigned long long slice_protect_err_bak;
+unsigned long long virt_page_release_merge_ok_bak;
+unsigned long long virt_page_release_merge_err_bak;
+unsigned long long slice_que_change_watch_bak;
+unsigned long long slice_mem_que_free_bak;
+
+unsigned long long slice_out_watch_que_num_bak;
+unsigned long long slice_insert_sd_tree_err_bak;
+unsigned long long slice_new_insert_num_bak ;
+unsigned long long slice_change_ref_err_bak;
+unsigned long long slice_merge_num_bak ;
+
+unsigned long long slice_fix_free_num_bak;
+unsigned long long slice_volatile_free_num_bak;
+unsigned long long slice_other_free_num_bak;
+unsigned long long slice_watch_free_num_bak;
+unsigned long long slice_sys_free_num_bak;
+
+unsigned long long slice_mem_watch_reuse_bak ;
+
+unsigned long long slice_deamon_find_volatile_bak;
+unsigned long long slice_deamon_find_watch_bak;
+unsigned long long slice_deamon_in_que_fail_bak;
+
+unsigned long long page_free_cnt_bak;
+unsigned long long data_map_key_cnt_bak;
+unsigned long long data_unmap_key_cnt_bak;
+unsigned long long delete_sd_tree_ok_bak ;
+unsigned long long delete_sd_tree_no_found_bak ;
+unsigned long long insert_sd_tree_ok_bak ;
+unsigned long long slice_pre_fix_check_cnt_bak ;
+
+unsigned long long slice_copy_pte_cnt_bak ;
+unsigned long long slice_copy_pte_cnt1_bak ;
 
 extern struct task_struct *spt_deamon_thread;
 extern int debug_statistic(cluster_head_t *head);
 extern void debug_cluster_travl(cluster_head_t *head);
-#if 0
-extern unsigned long long slice_file_cow;
-extern unsigned long long slice_file_watch_chg;
-extern unsigned long long slice_file_fix_chg;
-extern unsigned long long slice_file_chgref_num;
-#endif
 
 extern struct pone_hash_head *pone_hash_table;
 extern unsigned long long page_free_cnt;
@@ -84,29 +106,12 @@ extern unsigned long long delete_sd_tree_no_found ;
 extern unsigned long long insert_sd_tree_ok ;
 extern unsigned long long slice_pre_fix_check_cnt ;
 
-extern unsigned long long virt_page_release_merge_ok;
-extern unsigned long long virt_page_release_merge_err;
-
-extern unsigned long long virt_mem_page_lock_err;
-extern unsigned long long virt_mem_page_count_err;
-extern unsigned long long virt_mem_page_state_conflict;
-
-extern unsigned long long data_cmp_cnt;
-extern unsigned long long data_cmp_err;
-extern unsigned long long data_cmp_ptr_null;
-
 extern unsigned long long slice_copy_pte_cnt ;
 extern unsigned long long slice_copy_pte_cnt1 ;
 extern void* page_insert;
 extern char page_in_tree[];
 extern int deamon_scan_period;
-#if 0
-extern unsigned long long page_anon_num;
-extern unsigned long long page_read_fault_num;
-extern unsigned long long page_do_fault_num;
-extern unsigned long long page_pte_fault_num;
-extern unsigned long long page_pte_none_num;
-#endif
+
 extern void printk_debug_map_cnt(void);
 extern int lfrwq_len(lfrwq_t *qh);
 #ifdef CONFIG_SYSFS
@@ -257,63 +262,32 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 		len += lfrwq_reader_info_get(reader,buf+len);
 	}
 #endif
-	//len += sprintf(buf +len ,"slice que process count is %lld\r\n",process_que_num);
-	//len += sprintf(buf +len ,"page anon  count is %lld\r\n",page_anon_num);
-	//len += sprintf(buf +len ,"page read fault count is %lld\r\n",page_read_fault_num);
-	//len += sprintf(buf +len ,"page do fault count is %lld\r\n",page_do_fault_num);
-	//len += sprintf(buf +len ,"page pte fault count is %lld\r\n",page_pte_fault_num);
-	//len += sprintf(buf +len ,"page pte nono  count is %lld\r\n",page_pte_none_num);
 	
 	len += sprintf(buf +len ,"slice alloc cnt: %lld\r\n",slice_alloc_num);
-	len += sprintf(buf +len ,"slice in que ok cnt: %lld\r\n",slice_in_que_ok);
 	len += sprintf(buf +len ,"slice change volatile ok cnt: %lld\r\n",slice_change_volatile_ok);
-	len += sprintf(buf +len ,"slice in que err cnt: %lld\r\n",slice_in_que_err);
 
 	len += sprintf(buf +len ,"slice out que cnt: %lld\r\n",slice_out_que_num);
-	len += sprintf(buf +len ,"slice protect err cnt: %lld\r\n",slice_protect_err);
-	
-	len += sprintf(buf +len ,"slice protect err null cnt: %lld\r\n",make_slice_protect_err_null);
-	len += sprintf(buf +len ,"slice protect err nw cnt: %lld\r\n",make_slice_protect_err_nw);
-	len += sprintf(buf +len ,"slice protect err map cnt: %lld\r\n",make_slice_protect_err_map);
-	len += sprintf(buf +len ,"slice protect err lock cnt: %lld\r\n",make_slice_protect_err_lock);
-	len += sprintf(buf +len ,"slice protect err mapcnt cnt: %lld\r\n",make_slice_protect_err_mapcnt);
-	
-	len += sprintf(buf +len ,"rmap get anon vma  err  cnt: %lld\r\n",rmap_get_anon_vma_err);
-	len += sprintf(buf +len ,"rmap lock num err  cnt: %lld\r\n",rmap_lock_num_err);
-	len += sprintf(buf +len ,"rmap pte null err  cnt: %lld\r\n",rmap_pte_null_err);
-
-	len += sprintf(buf +len ,"slice in watch que ok  cnt: %lld\r\n",slice_in_watch_que_ok);
-	len += sprintf(buf +len ,"slice in watch que err cnt: %lld\r\n",slice_in_watch_que_err);
+	len += sprintf(buf +len ,"virt page merge count : %d\r\n",virt_page_release_merge_ok);
+	len += sprintf(buf +len ,"slice que change watch  cnt: %lld\r\n",slice_que_change_watch);
 	len += sprintf(buf +len ,"slice mem  que free cnt: %lld\r\n",slice_mem_que_free);
+	len += sprintf(buf +len ,"slice protect err cnt: %lld\r\n",slice_protect_err);
+	len += sprintf(buf +len ,"virt page merge count err : %d\r\n",virt_page_release_merge_err);
 	
-	
+	len += sprintf(buf +len ,"slice out watch que cnt: %lld\r\n",slice_out_watch_que_num);
 	len += sprintf(buf +len ,"slice new insert cnt: %lld\r\n",slice_new_insert_num);
-	len += sprintf(buf +len ,"slice mapcount err cnt: %lld\r\n",slice_map_cnt_err);
+	len += sprintf(buf +len ,"slice merge cnt: %lld\r\n",slice_merge_num);
 	len += sprintf(buf +len ,"slice insert sd tree err cnt: %lld\r\n",slice_insert_sd_tree_err);
 	len += sprintf(buf +len ,"slice change ref err  cnt: %lld\r\n",slice_change_ref_err);
-	len += sprintf(buf +len ,"slice merge cnt: %lld\r\n",slice_merge_num);
-	len += sprintf(buf +len ,"slice mem watch free cnt: %lld\r\n",slice_mem_watch_free);
 	
 	
 	
 	len += sprintf(buf +len ,"slice fix free cnt: %lld\r\n",slice_fix_free_num);
 	len += sprintf(buf +len ,"slice volatile free cnt: %lld\r\n",slice_volatile_free_num);
 	len += sprintf(buf +len ,"slice other free cnt: %lld\r\n",slice_other_free_num);
+	len += sprintf(buf +len ,"slice watch free cnt: %lld\r\n",slice_watch_free_num);
 	len += sprintf(buf +len ,"slice sys free cnt: %lld\r\n",slice_sys_free_num);
 
-
-
-
-	len += sprintf(buf +len ,"slice mem watch chg cnt: %lld\r\n",slice_mem_watch_change);
-	len += sprintf(buf +len ,"slice mem fix chg cnt: %lld\r\n",slice_mem_fix_change);
-	
-#if 0
-	len += sprintf(buf +len ,"slice file cow  is %lld\r\n",slice_file_cow);
-	len += sprintf(buf +len ,"slice file watch chg is %lld\r\n",slice_file_watch_chg);
-	len += sprintf(buf +len ,"slice file fix chg is %lld\r\n",slice_file_fix_chg);
-	len += sprintf(buf +len ,"slice file chg ref is %lld\r\n",slice_file_chgref_num);
-#endif
-
+	len += sprintf(buf +len ,"slice mem watch reuse cnt: %lld\r\n",slice_mem_watch_reuse);
 	len += sprintf(buf +len ,"data map key  cnt: %lld\r\n",data_map_key_cnt);
 	len += sprintf(buf +len ,"data unmap key cnt: %lld\r\n",data_unmap_key_cnt);
 	len += sprintf(buf +len ,"delete sd tree ok cnt: %lld\r\n",delete_sd_tree_ok);
@@ -321,29 +295,15 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"insert sd tree ok cnt: %lld\r\n",insert_sd_tree_ok);
 	len += sprintf(buf +len ,"slice pre fix check cnt: %lld\r\n",slice_pre_fix_check_cnt);
 
-	len += sprintf(buf +len ,"slice volatile in que  cnt: %lld\r\n",slice_volatile_in_que_ok);
-	len += sprintf(buf +len ,"slice volatile in que err  cnt: %lld\r\n",slice_volatile_in_que_err);
 	len += sprintf(buf +len ,"slice deamon find volatile  cnt: %lld\r\n",slice_deamon_find_volatile);
+	len += sprintf(buf +len ,"slice deamon fine watch cnt: %lld\r\n",slice_deamon_find_watch);
 	len += sprintf(buf +len ,"slice deamon in que fail  cnt: %lld\r\n",slice_deamon_in_que_fail);
 	len += sprintf(buf +len ,"deamon task state: %d\r\n",spt_deamon_thread->state);
-	//len += sprintf(buf +len ,"que len: %d\r\n",lfrwq_len(slice_que));
-	//len += sprintf(buf +len ,"watch que len: %d\r\n",lfrwq_len(slice_watch_que));
 	len += sprintf(buf +len ,"deamon que len: %d\r\n",lfrwq_len(slice_deamon_que));
-	len += sprintf(buf +len ,"virt page merge count : %d\r\n",virt_page_release_merge_ok);
-	len += sprintf(buf +len ,"virt page merge count err : %d\r\n",virt_page_release_merge_err);
 	
-	len += sprintf(buf +len ,"virt page lock err : %d\r\n",virt_mem_page_lock_err);
-	len += sprintf(buf +len ,"virt page state  err : %d\r\n",virt_mem_page_state_conflict);
-	len += sprintf(buf +len ,"virt page count   err : %d\r\n",virt_mem_page_count_err);
 	len += sprintf(buf +len ,"slice copy pte  count  : %lld\r\n",slice_copy_pte_cnt);
 	len += sprintf(buf +len ,"slice copy pte1  count  : %lld\r\n",slice_copy_pte_cnt1);
 	
-#if 0
-	len += sprintf(buf +len , "data cmp count : %d\r\n",data_cmp_cnt);
-	len += sprintf(buf +len ,"data cmp err count : %d\r\n",data_cmp_err);
-	len += sprintf(buf +len ,"data_cmp ptr null  count : %d\r\n",data_cmp_ptr_null);
-#endif
-
 	len += sprintf(buf +len ,"tree page free  cnt: %lld\r\n",page_free_cnt);
 
 	len += slice_file_info_get(buf+len);
@@ -356,26 +316,6 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 PONE_ATTR_RO(pone_info);
 unsigned long pone_file_watch = 0xFFFFFFFFFFFFFFFF;
-
-#if 0
-static ssize_t pone_debug_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
-{
-	unsigned long show_tmp = (slice_watch_que_debug <<8) + slice_que_debug;
-	return sprintf(buf,"%llx",show_tmp);
-
-}
-
-static ssize_t pone_debug_store(struct kobject *kobj, struct kobj_attribute *attr, char *buf,size_t count)
-{
-	int err;
-	unsigned long store_tmp = 0;	
-	err =  kstrtoul(buf,16,&store_tmp);
-	printk("store_tmp is 0x%llx\r\n",store_tmp);
-	slice_que_debug = store_tmp & 255;
-	slice_watch_que_debug = store_tmp >> 8;
-	return count;
-}
-#endif
 extern void debug_mm_pte(void);
 extern cluster_head_t *plow_clst;
 extern unsigned long long debug_refind[48];
@@ -456,6 +396,8 @@ extern void print_host_virt_mem_pool(void);
 extern void show_slice_volatile_cnt(void);
 extern void show_pone_time_stat(void);
 extern void spt_threadinfo_show(void);
+extern unsigned long long deamon_sleep_period_in_que_fail;
+extern unsigned long long deamon_sleep_period_in_loop;
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {	
 	//slice_debug_area_show();
@@ -467,10 +409,13 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 		printk("release page state %lld\r\n",get_slice_state_by_id(page_to_pfn(release_merge_page)));
 		printk("release page anon %d\r\n",PageAnon(release_merge_page));
 	}
+	printk("deamon_sleep_period_in_que_fail is %lld\r\n",deamon_sleep_period_in_que_fail);
+	printk("deamon_sleep_period_in_loop is %lld\r\n",deamon_sleep_period_in_loop);
+
 	//show_page_err_info();
 	//add_slice_volatile_cnt_test(0,1000);
-	//show_slice_volatile_cnt();
-	show_pone_time_stat();
+	show_slice_volatile_cnt();
+	//show_pone_time_stat();
 	spt_threadinfo_show();
 	return sprintf(buf,"check dmesg buffer11111");
 }
@@ -548,6 +493,99 @@ static ssize_t pone_recycle_run_show(struct kobject *kobj, struct kobj_attribute
 
 PONE_ATTR(pone_recycle_run);
 
+
+static ssize_t pone_stat_begin_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	slice_alloc_num_bak  = slice_alloc_num;
+	slice_change_volatile_ok_bak = slice_change_volatile_ok;
+
+	slice_out_que_num_bak = slice_out_que_num;
+	slice_protect_err_bak = slice_protect_err;
+	virt_page_release_merge_ok_bak = virt_page_release_merge_ok;;
+	virt_page_release_merge_err_bak = virt_page_release_merge_err;
+	slice_que_change_watch_bak = slice_que_change_watch ;
+	slice_mem_que_free_bak = slice_mem_que_free;
+
+	slice_out_watch_que_num_bak = slice_out_watch_que_num;
+	slice_insert_sd_tree_err_bak = slice_insert_sd_tree_err;
+	slice_new_insert_num_bak  = slice_new_insert_num;
+	slice_change_ref_err_bak = slice_change_ref_err;
+	slice_merge_num_bak  = slice_merge_num ;
+
+	slice_fix_free_num_bak = slice_fix_free_num;
+	slice_volatile_free_num_bak = slice_volatile_free_num;
+	slice_other_free_num_bak = slice_other_free_num;
+	slice_watch_free_num_bak = slice_watch_free_num;
+	slice_sys_free_num_bak = slice_sys_free_num;
+
+	slice_mem_watch_reuse_bak = slice_mem_watch_reuse;;
+
+	slice_deamon_find_volatile_bak = slice_deamon_find_volatile;
+	slice_deamon_find_watch_bak = slice_deamon_find_watch;
+	slice_deamon_in_que_fail_bak  = slice_deamon_in_que_fail;
+	
+	page_free_cnt_bak = page_free_cnt;
+	data_map_key_cnt_bak = data_map_key_cnt;
+	data_unmap_key_cnt_bak = data_unmap_key_cnt;
+	delete_sd_tree_ok_bak  = delete_sd_tree_ok;
+	delete_sd_tree_no_found_bak = delete_sd_tree_no_found;
+	insert_sd_tree_ok_bak = insert_sd_tree_ok;
+	slice_pre_fix_check_cnt_bak = slice_pre_fix_check_cnt;
+
+	slice_copy_pte_cnt_bak = slice_copy_pte_cnt;
+	slice_copy_pte_cnt1_bak = slice_copy_pte_cnt1;
+	
+	return sprintf(buf,"%s","begin stat\r\n");
+}
+PONE_ATTR_RO(pone_stat_begin);
+
+
+static ssize_t pone_stat_end_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+	int len = 0;
+	len += sprintf(buf +len ,"slice alloc cnt: %lld\r\n",slice_alloc_num - slice_alloc_num_bak);
+	len += sprintf(buf +len ,"slice change volatile ok cnt: %lld\r\n",slice_change_volatile_ok - slice_change_volatile_ok_bak);
+
+	len += sprintf(buf +len ,"slice out que cnt: %lld\r\n",slice_out_que_num - slice_out_que_num);
+	len += sprintf(buf +len ,"virt page merge count : %d\r\n",virt_page_release_merge_ok - virt_page_release_merge_ok_bak);
+	len += sprintf(buf +len ,"slice que change watch  cnt: %lld\r\n",slice_que_change_watch - slice_que_change_watch_bak);
+	len += sprintf(buf +len ,"slice mem  que free cnt: %lld\r\n",slice_mem_que_free - slice_mem_que_free_bak);
+	len += sprintf(buf +len ,"slice protect err cnt: %lld\r\n",slice_protect_err - slice_protect_err_bak);
+	len += sprintf(buf +len ,"virt page merge count err : %d\r\n",virt_page_release_merge_err - virt_page_release_merge_err_bak);
+	
+	len += sprintf(buf +len ,"slice out watch que cnt: %lld\r\n",slice_out_watch_que_num - slice_out_watch_que_num_bak);
+	len += sprintf(buf +len ,"slice new insert cnt: %lld\r\n",slice_new_insert_num - slice_new_insert_num_bak);
+	len += sprintf(buf +len ,"slice merge cnt: %lld\r\n",slice_merge_num - slice_merge_num_bak);
+	len += sprintf(buf +len ,"slice insert sd tree err cnt: %lld\r\n",slice_insert_sd_tree_err - slice_insert_sd_tree_err_bak);
+	len += sprintf(buf +len ,"slice change ref err  cnt: %lld\r\n",slice_change_ref_err - slice_change_ref_err_bak);
+	
+	len += sprintf(buf +len ,"slice fix free cnt: %lld\r\n",slice_fix_free_num - slice_fix_free_num_bak);
+	len += sprintf(buf +len ,"slice volatile free cnt: %lld\r\n",slice_volatile_free_num - slice_volatile_free_num_bak);
+	len += sprintf(buf +len ,"slice other free cnt: %lld\r\n",slice_other_free_num - slice_other_free_num_bak);
+	len += sprintf(buf +len ,"slice watch free cnt: %lld\r\n",slice_watch_free_num - slice_watch_free_num_bak);
+	len += sprintf(buf +len ,"slice sys free cnt: %lld\r\n",slice_sys_free_num - slice_sys_free_num_bak);
+
+	len += sprintf(buf +len ,"slice mem watch reuse cnt: %lld\r\n",slice_mem_watch_reuse - slice_mem_watch_reuse_bak);
+	len += sprintf(buf +len ,"data map key  cnt: %lld\r\n",data_map_key_cnt - data_map_key_cnt_bak);
+	len += sprintf(buf +len ,"data unmap key cnt: %lld\r\n",data_unmap_key_cnt - data_unmap_key_cnt_bak);
+	len += sprintf(buf +len ,"delete sd tree ok cnt: %lld\r\n",delete_sd_tree_ok - delete_sd_tree_ok_bak);
+	len += sprintf(buf +len ,"delete sd tree no found cnt: %lld\r\n",delete_sd_tree_no_found - delete_sd_tree_no_found_bak);
+	len += sprintf(buf +len ,"insert sd tree ok cnt: %lld\r\n",insert_sd_tree_ok - insert_sd_tree_ok_bak);
+	len += sprintf(buf +len ,"slice pre fix check cnt: %lld\r\n",slice_pre_fix_check_cnt - slice_pre_fix_check_cnt_bak);
+
+	len += sprintf(buf +len ,"slice deamon find volatile  cnt: %lld\r\n",slice_deamon_find_volatile - slice_deamon_find_volatile_bak);
+	len += sprintf(buf +len ,"slice deamon fine watch cnt: %lld\r\n",slice_deamon_find_watch - slice_deamon_find_watch_bak);
+	len += sprintf(buf +len ,"slice deamon in que fail  cnt: %lld\r\n",slice_deamon_in_que_fail - slice_deamon_in_que_fail_bak);
+	
+	len += sprintf(buf +len ,"slice copy pte  count  : %lld\r\n",slice_copy_pte_cnt - slice_copy_pte_cnt_bak);
+	len += sprintf(buf +len ,"slice copy pte1  count  : %lld\r\n",slice_copy_pte_cnt1- slice_copy_pte_cnt1_bak);
+	
+	return len;
+
+}
+
+PONE_ATTR_RO(pone_stat_end);
+
 static struct attribute *pone_attrs[] = {
 		&pone_run_attr.attr,
 		&pone_info_attr.attr,
@@ -556,6 +594,8 @@ static struct attribute *pone_attrs[] = {
 		&pone_deamon_scan_period_attr.attr,
 		&pone_divide_thread_enable_attr.attr,
 		&pone_recycle_run_attr.attr,
+		&pone_stat_begin_attr.attr,
+		&pone_stat_end_attr.attr,
 		NULL,
 };
 

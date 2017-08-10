@@ -176,12 +176,7 @@ static int splitter_process_thread(void *data)
 	do
 	{
 		ret = process_state_que(slice_cluster_que[thread_idx],reader,1);
-		w_ret = process_state_que(slice_cluster_watch_que[thread_idx],watch_reader,2);
-#if 0	
-		d_ret = process_state_que(slice_deamon_que,deamon_reader,3);
-		if((w_ret != -2) && (ret!= -2)&&(d_ret !=-2))
-#endif
-		if((w_ret != -2) && (ret!= -2))
+		if(ret!= -2)
 		{
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule();
@@ -600,7 +595,7 @@ void splitter_wakeup_cluster(void)
 	for(i = 0;i < pone_thread_num ; i++)
 	{
 		ret += lfrwq_set_r_max_idx(slice_cluster_que[i],lfrwq_get_w_idx(slice_cluster_que[i]));
-		ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
+		//ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
 		if(ret)
 		{
 			if(spt_thread_id[1 + pone_thread_interval*i]->state != TASK_RUNNING)
@@ -610,7 +605,7 @@ void splitter_wakeup_cluster(void)
 
 	}
 	ret = 0;
-
+	
 	ret += lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
 	if(ret)
 	{
@@ -621,9 +616,9 @@ void splitter_wakeup_cluster(void)
 void wakeup_splitter_thread_by_que(long que_id)
 {
 	que_id = que_id%pone_thread_num;
-	
+	lfrwq_set_r_max_idx(slice_cluster_que[que_id],lfrwq_get_w_idx(slice_cluster_que[que_id]));
 	if(spt_thread_id[1 + pone_thread_interval*que_id]->state != TASK_RUNNING)
-	wake_up_process(spt_thread_id[1+pone_thread_interval*que_id]);		
+		wake_up_process(spt_thread_id[1+pone_thread_interval*que_id]);		
 }
 
 #endif

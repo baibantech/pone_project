@@ -268,8 +268,6 @@ new_slice_cnt:
 	while(1);
 }
 
-
-
 void set_deamon_run(void)
 {
 	unsigned long long old = 0;
@@ -312,6 +310,7 @@ int need_wakeup_deamon(void)
 struct task_struct *spt_deamon_thread = NULL;
 lfrwq_t *slice_deamon_que = NULL;
 unsigned long long slice_deamon_find_volatile = 0;
+unsigned long long slice_deamon_find_watch = 0;
 unsigned long long slice_deamon_in_que_fail = 0;
 #if 0
 static int splitter_daemon_thread(void *data)
@@ -407,6 +406,8 @@ void show_slice_volatile_cnt(void)
 	}
 
 }
+unsigned long long deamon_sleep_period_in_que_fail;
+unsigned long long deamon_sleep_period_in_loop;
 extern void wakeup_splitter_thread_by_que(long que_id);
 static int splitter_daemon_thread(void *data)
 {
@@ -448,9 +449,8 @@ static int splitter_daemon_thread(void *data)
 			{
 				slice_state = get_slice_state(i,j);
 				
-				if(SLICE_VOLATILE == slice_state)
+				if((SLICE_VOLATILE == slice_state) ||(SLICE_WATCH == slice_state))
 				{
-#if 1
 get_cnt:
 					if(0 != (slice_vcnt = get_slice_volatile_cnt(i,j)))
 					{
@@ -481,7 +481,6 @@ get_cnt:
 
 						}
 					}
-#endif
 					slice_idx = slice_begin + j; 
 					page = pfn_to_page(slice_idx);
 					que_id = pone_get_slice_que_id(page);
@@ -489,19 +488,26 @@ get_cnt:
 					{
 						continue;
 					}
-					if(0 != change_slice_state(i,j,SLICE_VOLATILE,SLICE_ENQUE))
+					if(SLICE_VOLATILE == slice_state)
 					{
-						need_repeat++;
-						continue;
+						if(0 != change_slice_state(i,j,SLICE_VOLATILE,SLICE_ENQUE))
+						{
+							need_repeat++;
+							continue;
+						}
+						slice_deamon_find_volatile++;
+					}
+					else
+					{
+						if(0 != change_slice_state(i,j,SLICE_WATCH,SLICE_WATCH_QUE))
+						{
+							need_repeat++;
+							continue;
+						}
+						slice_deamon_find_watch++;
 					}
 					
-					slice_deamon_find_volatile++;
 retry:
-
-					
-#if 0
-					if(-1 == lfrwq_inq(slice_deamon_que,pfn_to_page(slice_idx)))
-#endif
 					if(-1 == lfrwq_in_cluster_que(page,que_id))	
 					{
 						slice_deamon_in_que_fail++;
@@ -510,6 +516,7 @@ retry:
 						cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
 						if(cost_time >deamon_scan_period)
 						{
+							deamon_sleep_period_in_que_fail++;
 							msleep(deamon_scan_period);
 							start_jiffies = get_jiffies_64();
 						}
@@ -533,6 +540,7 @@ retry:
 		end_jiffies = get_jiffies_64();
 
 		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
+		deamon_sleep_period_in_loop++;
 		if(cost_time >deamon_scan_period)
 		{
 			msleep(deamon_scan_period);

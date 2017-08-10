@@ -40,6 +40,7 @@
 #include <linux/swapops.h>
 #include <linux/swap_cgroup.h>
 #ifdef CONFIG_PONE_MODULE
+#include <pone/slice_state.h>
 #include <pone/pone_linux_adp.h>
 #endif
 
@@ -932,7 +933,8 @@ int reuse_swap_page(struct page *page)
 	if (unlikely(PageKsm(page)))
 		return 0;
 #ifdef CONFIG_PONE_MODULE
-	if(PONE_OK == PONE_RUN(pone_watched_page,page))
+	if(PONE_ERR == PONE_RUN(pone_page_can_reuse,page))
+	//if(PONE_ERR == pone_slice_can_reuse(page))
 	{
 		return 0;
 	}

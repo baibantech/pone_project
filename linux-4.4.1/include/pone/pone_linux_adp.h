@@ -18,6 +18,7 @@ extern pone_linux_adp_func	  pone_page_dec_mapcount;
 extern pone_linux_adp_func    pone_page_free_check;
 
 extern pone_linux_adp_func    pone_watched_page;
+extern pone_linux_adp_func    pone_page_can_reuse;
 extern pone_linux_adp_func_2  pone_page_mark_volatile_cnt;
 
 #define PONE_OK   0
@@ -43,7 +44,7 @@ static inline int  PONE_RUN_2(pone_linux_adp_func_2 func, struct page *page,stru
 }
 
 #define PONE_DEBUG(format,...) \
-	printk("FILE: "__FILE__",LINE: %d: "format"/r/n",__LINE__, ##__VA_ARGS__)
+	printk("FILE: "__FILE__",LINE: %d: "format"\r\n",__LINE__, ##__VA_ARGS__)
 
 #endif
 
