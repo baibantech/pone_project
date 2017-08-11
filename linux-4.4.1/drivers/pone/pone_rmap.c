@@ -321,6 +321,8 @@ int rmap_walk_pone(struct page *page, struct rmap_walk_control *rwc)
 }
 EXPORT_SYMBOL(rmap_walk_pone);
 
+unsigned long pone_que_stat[256] = {0};
+
 long  pone_get_slice_que_id(struct page *page)
 {
 	struct anon_vma *anon_vma;
@@ -336,7 +338,7 @@ long  pone_get_slice_que_id(struct page *page)
 	pgoff = page_to_pgoff(page);
 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
 		struct vm_area_struct *vma = avc->vma;
-		que_id = (unsigned long)(void*)vma->vm_mm /sizeof(unsigned long);
+		que_id = (long)(void*)vma->vm_mm;
 		break;		
 	}
 	

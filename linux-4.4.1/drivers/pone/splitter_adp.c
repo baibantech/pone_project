@@ -36,6 +36,79 @@ EXPORT_SYMBOL(ljy_vmalloc_area);
 int  op_index = 0;
 int spt_divide_thread_run = 0;
 DECLARE_WAIT_QUEUE_HEAD(pone_divide_thread_run);
+int pone_thread_num = 0;
+int pone_thread_interval = 2;
+
+typedef struct pone_que_stat
+{
+	unsigned long long page_num;
+	unsigned long long slice_mm[64];
+}pone_que_stat;
+
+pone_que_stat *pone_que_stat_ptr = NULL;
+
+void pone_que_stat_init(void)
+{
+	if(!pone_que_stat_ptr)
+	{
+		pone_que_stat_ptr = kmalloc(pone_thread_num * sizeof(pone_que_stat),GFP_KERNEL);
+		if(pone_que_stat_ptr)
+		{
+			memset(pone_que_stat_ptr ,0, pone_thread_num*sizeof(pone_que_stat));
+		}
+		else
+		{
+			PONE_DEBUG("malloc pone que stat ptr err\r\n");
+		}
+	}
+}
+
+int pone_que_stat_lookup(unsigned long long page_mm)
+{
+	int stat_id = page_mm %pone_thread_num;
+	int i = 0;
+
+	for(i = 0;i < 64 ;i++)
+	{
+		if(0 == pone_que_stat_ptr[stat_id].slice_mm[i])
+		{
+			pone_que_stat_ptr[stat_id].slice_mm[i] = page_mm;
+			break;
+		}
+		else if(pone_que_stat_ptr[stat_id].slice_mm[i] == page_mm)
+		{
+			break;
+		}
+	}
+	if( i == 64)
+	{
+		PONE_DEBUG("max mm in one que\r\n");
+	}
+	pone_que_stat_ptr[stat_id].page_num++;
+	return stat_id;
+}
+
+void show_pone_que_stat(void)
+{
+	int i ,j;
+
+	if(pone_que_stat_ptr)
+	{
+		for(i = 0 ; i < pone_thread_num; i++)
+		{
+			printk("que index %d,page_num %lld\r\n",i ,pone_que_stat_ptr[i].page_num);
+			for(j = 0 ;j < 64 ; j++)
+			{
+				if(pone_que_stat_ptr[i].slice_mm[j]!= 0)
+				{
+					printk("que index %d,slice_mm 0x%llx\r\n",i,pone_que_stat_ptr[i].slice_mm[j]);
+				}
+			}
+		}
+	}
+
+}
+
 void record_tree(struct page *page,char op)
 {
 	if(ljy_vmalloc_area != NULL)
@@ -280,10 +353,6 @@ void splitter_divide_thread(void *arg)
 	}
 }
 
-
-int pone_thread_num = 0;
-int pone_thread_interval = 2;
-
 int pone_case_init(void)
 {
 	int thread_num = 0;
@@ -351,6 +420,8 @@ int pone_case_init(void)
 		}
 
 	#endif
+	
+	pone_que_stat_init();	
 	for_each_online_cpu(cpu)
 	{
 		if(cpu == 0)

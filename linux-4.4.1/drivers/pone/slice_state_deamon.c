@@ -11,6 +11,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
+#include <linux/hash.h>
 #include <pone/lf_rwq.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
@@ -408,6 +409,7 @@ void show_slice_volatile_cnt(void)
 unsigned long long deamon_sleep_period_in_que_fail;
 unsigned long long deamon_sleep_period_in_loop;
 extern void wakeup_splitter_thread_by_que(long que_id);
+int pone_que_stat_lookup(unsigned long long page_mm);
 static int splitter_daemon_thread(void *data)
 {
 	int i = 0;
@@ -483,10 +485,12 @@ get_cnt:
 					slice_idx = slice_begin + j; 
 					page = pfn_to_page(slice_idx);
 					que_id = pone_get_slice_que_id(page);
-					if(-1 == que_id)
+					if((-1 == que_id) || (0 == que_id))
 					{
 						continue;
 					}
+					que_id = hash_64(que_id,48);
+					que_id = pone_que_stat_lookup(que_id);
 					if(SLICE_VOLATILE == slice_state)
 					{
 						if(0 != change_slice_state(i,j,SLICE_VOLATILE,SLICE_ENQUE))
