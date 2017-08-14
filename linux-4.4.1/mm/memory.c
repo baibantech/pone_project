@@ -2163,6 +2163,7 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		/* Free the old page.. */
 		new_page = old_page;
 		page_copied = 1;
+#if 0
 #ifdef CONFIG_PONE_MODULE
 		if(op_page && page_copied)
 		{
@@ -2170,7 +2171,7 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 			//pone_slice_mark_volatile_cnt(old_page,op_page);
 		}
 #endif
-
+#endif
 	
 	} else {
 		mem_cgroup_cancel_charge(new_page, memcg);

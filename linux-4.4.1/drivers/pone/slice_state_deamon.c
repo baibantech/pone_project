@@ -15,8 +15,10 @@
 #include <pone/lf_rwq.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
+#include <pone/virt_release.h>
 #include  "splitter_adp.h"
-int deamon_scan_period = 20000;
+int deamon_scan_period = 5000;
+int deamon_merge_scan = 4;
 unsigned long long wakeup_deamon_cnt = 0;
 
 slice_state_control_block *deamon_volatile  = NULL;
@@ -423,8 +425,9 @@ static int splitter_daemon_thread(void *data)
 	long long slice_state = 0;
 	unsigned long slice_idx = 0;
 	unsigned long slice_begin = 0;
-	int volatile_count = 0;
-	int need_repeat = 0;
+	int volatile_oper = 0;
+	int need_repeat =0 ;
+	unsigned int scan_count = 0;
 	unsigned long long start_jiffies = 0;
 	unsigned long long end_jiffies = 0;
 	unsigned long long cost_time = 0;
@@ -433,14 +436,21 @@ static int splitter_daemon_thread(void *data)
 	unsigned long long slice_scan_cnt = 0;
 	long que_id;
 	struct page *page = NULL;
+	void	*page_addr = NULL;
+
 	__set_current_state(TASK_RUNNING);
 
 	do
 	{
 
-		volatile_count = 0;
+		volatile_oper = 0;
 		need_repeat =0;
+		if((scan_count % deamon_merge_scan) == 0)
+		{
+			volatile_oper = 1;
+		}
 		start_jiffies = get_jiffies_64();
+
 		for(i = 0 ; i<global_block->node_num;i++)
 		{
 			slice_num = global_block->slice_node[i].slice_num;
@@ -452,6 +462,25 @@ static int splitter_daemon_thread(void *data)
 				
 				if((SLICE_VOLATILE == slice_state) ||(SLICE_WATCH == slice_state))
 				{
+					slice_idx = slice_begin + j; 
+					page = pfn_to_page(slice_idx);
+
+					if(SLICE_VOLATILE == slice_state)
+					{
+						page_addr = kmap_atomic(page);
+						if(PONE_OK == is_virt_page_release(page_addr))
+						{
+							kunmap_atomic(page_addr);
+							goto get_que;
+						}
+						kunmap_atomic(page_addr);	
+					}
+
+					if(!volatile_oper)
+					{
+						continue;
+					}
+
 get_cnt:
 					if(0 != (slice_vcnt = get_slice_volatile_cnt(i,j)))
 					{
@@ -482,8 +511,7 @@ get_cnt:
 
 						}
 					}
-					slice_idx = slice_begin + j; 
-					page = pfn_to_page(slice_idx);
+get_que:
 					que_id = pone_get_slice_que_id(page);
 					if((-1 == que_id) || (0 == que_id))
 					{
