@@ -3416,6 +3416,24 @@ spt_debug("=====================================================\r\n");
                         else
                         {
                             tmp_vec.down = next_vec.down;
+                            if(next_vec.type != SPT_VEC_DATA
+                                || (next_vec.type == SPT_VEC_DATA
+                                     && next_vec.rd != SPT_NULL))
+                            {
+                                spt_vec tmp_vec_b;
+                                tmp_vec_b.val = next_vec.val;
+                                tmp_vec_b.status = SPT_VEC_VALID;
+                                atomic64_cmpxchg((atomic64_t *)pnext, next_vec.val, tmp_vec_b.val);
+                                //set invalid succ or not, refind from cur
+                                cur_vec.val = pcur->val;
+                                if((cur_vec.status == SPT_VEC_INVALID))
+                                {
+                                    pcur = ppre;
+                                    goto refind_forward;
+                                }
+                                continue;
+                            }
+                                //BUG();
                         }
                         //cur_vec.val = atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val);
                         if(cur_vec.val == atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val))//delete succ
