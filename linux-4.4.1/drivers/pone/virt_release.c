@@ -429,7 +429,6 @@ int is_in_mem_pool(struct mm_struct *mm)
 int delete_mm_in_pool(struct mm_struct *mm)
 {
 	int i =0;
-#if 0
 	for(i =0 ; i < MEM_POOL_MAX; i++)
 	{
 		if(mem_pool_addr[i]!=NULL)
@@ -441,7 +440,6 @@ int delete_mm_in_pool(struct mm_struct *mm)
 			}
 		}
 	}
-#endif
 }
 int pone_page_recycle_enable = 1;
 

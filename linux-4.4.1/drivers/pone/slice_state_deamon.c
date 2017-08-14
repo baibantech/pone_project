@@ -445,6 +445,7 @@ static int splitter_daemon_thread(void *data)
 
 		volatile_oper = 0;
 		need_repeat =0;
+		scan_count++;
 		if((scan_count % deamon_merge_scan) == 0)
 		{
 			volatile_oper = 1;
