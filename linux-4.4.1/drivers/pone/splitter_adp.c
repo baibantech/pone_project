@@ -390,8 +390,8 @@ int pone_case_init(void)
 	#ifdef SLICE_OP_CLUSTER_QUE
 		for(i = 0 ; i < pone_thread_num;i++)
 		{
-			slice_cluster_que[i] = lfrwq_init(8192*2,512,2);
-			slice_cluster_watch_que[i] = lfrwq_init(8192*2,512,2);
+			slice_cluster_que[i] = lfrwq_init(8192*64,1024,2);
+			slice_cluster_watch_que[i] = lfrwq_init(8192,512,2);
 
 			if((NULL == slice_cluster_que[i])|| (NULL == slice_cluster_watch_que[i]))
 			{
@@ -450,6 +450,8 @@ int pone_case_init(void)
 		}
 		thrd_cnt++;
 	}
+	pone_thread_num = thrd_cnt;
+
 	spt_divid_thread = kthread_create(splitter_divide_thread ,pgclst,"spthrd_divide");
 
 	if(IS_ERR(spt_divid_thread))
@@ -491,7 +493,7 @@ char * insert_sd_tree(unsigned long slice_idx)
 }
 unsigned long long delete_sd_tree_ok =0;
 unsigned long long delete_sd_tree_no_found  =0;
-
+unsigned long long delete_merge_page_cnt = 0;
 unsigned long long data_cmp_cnt = 0;
 unsigned long long data_cmp_err = 0;
 unsigned long long data_cmp_ptr_null = 0;
@@ -640,6 +642,10 @@ try_again:
 		}
 		else
 		{
+			if(ret > 0)
+			{
+				atomic64_add(1,(atomic64_t *)&delete_merge_page_cnt);
+			}
 			atomic64_add(1,(atomic64_t*)&delete_sd_tree_ok);
 		}
 		

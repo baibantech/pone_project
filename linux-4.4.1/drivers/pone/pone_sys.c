@@ -87,6 +87,7 @@ unsigned long long data_map_key_cnt_bak;
 unsigned long long data_unmap_key_cnt_bak;
 unsigned long long delete_sd_tree_ok_bak ;
 unsigned long long delete_sd_tree_no_found_bak ;
+unsigned long long delete_merge_page_cnt_bak;
 unsigned long long insert_sd_tree_ok_bak ;
 unsigned long long slice_pre_fix_check_cnt_bak ;
 
@@ -103,6 +104,7 @@ extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
 extern unsigned long long delete_sd_tree_ok ;
 extern unsigned long long delete_sd_tree_no_found ;
+extern unsigned long long delete_merge_page_cnt;
 extern unsigned long long insert_sd_tree_ok ;
 extern unsigned long long slice_pre_fix_check_cnt ;
 
@@ -292,6 +294,7 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"data unmap key cnt: %lld\r\n",data_unmap_key_cnt);
 	len += sprintf(buf +len ,"delete sd tree ok cnt: %lld\r\n",delete_sd_tree_ok);
 	len += sprintf(buf +len ,"delete sd tree no found cnt: %lld\r\n",delete_sd_tree_no_found);
+	len += sprintf(buf +len ,"delete merge page cnt: %lld\r\n",delete_merge_page_cnt);
 	len += sprintf(buf +len ,"insert sd tree ok cnt: %lld\r\n",insert_sd_tree_ok);
 	len += sprintf(buf +len ,"slice pre fix check cnt: %lld\r\n",slice_pre_fix_check_cnt);
 
@@ -530,6 +533,7 @@ static ssize_t pone_stat_begin_show(struct kobject *kobj, struct kobj_attribute 
 	data_unmap_key_cnt_bak = data_unmap_key_cnt;
 	delete_sd_tree_ok_bak  = delete_sd_tree_ok;
 	delete_sd_tree_no_found_bak = delete_sd_tree_no_found;
+	delete_merge_page_cnt_bak = delete_merge_page_cnt;
 	insert_sd_tree_ok_bak = insert_sd_tree_ok;
 	slice_pre_fix_check_cnt_bak = slice_pre_fix_check_cnt;
 
@@ -571,6 +575,7 @@ static ssize_t pone_stat_end_show(struct kobject *kobj, struct kobj_attribute *a
 	len += sprintf(buf +len ,"data unmap key cnt: %lld\r\n",data_unmap_key_cnt - data_unmap_key_cnt_bak);
 	len += sprintf(buf +len ,"delete sd tree ok cnt: %lld\r\n",delete_sd_tree_ok - delete_sd_tree_ok_bak);
 	len += sprintf(buf +len ,"delete sd tree no found cnt: %lld\r\n",delete_sd_tree_no_found - delete_sd_tree_no_found_bak);
+	len += sprintf(buf +len ,"delete merge page cnt: %lld\r\n",delete_merge_page_cnt - delete_merge_page_cnt_bak);
 	len += sprintf(buf +len ,"insert sd tree ok cnt: %lld\r\n",insert_sd_tree_ok - insert_sd_tree_ok_bak);
 	len += sprintf(buf +len ,"slice pre fix check cnt: %lld\r\n",slice_pre_fix_check_cnt - slice_pre_fix_check_cnt_bak);
 
