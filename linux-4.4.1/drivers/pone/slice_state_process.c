@@ -664,7 +664,7 @@ int pone_process_que_state(void *slice)
 					/*make slice wprotect err or inq err*/
 					cur_state = get_slice_state(nid,slice_id);
 
-					if((SLICE_IDLE != cur_state) && (SLICE_ENQUE != cur_state))
+					if((SLICE_IDLE != cur_state) && (SLICE_ENQUE != cur_state)&&(SLICE_CHG != cur_state))
 					{
 						PONE_DEBUG("slice state err in out que %lld \r\n",cur_state);
 						break;

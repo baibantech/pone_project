@@ -86,7 +86,7 @@ int virt_mark_page_release(struct page *page)
 	{
 		if(0 != atomic64_cmpxchg((atomic64_t*)&guest_mem_pool->desc[idx],0,page_to_pfn(page)))
 		{
-			pool_id = MEM_POOL_MAX +1;
+			pool_id = guest_mem_pool->pool_max  +1;
 			idx = guest_mem_pool->desc_max +1;
 			atomic64_add(1,(atomic64_t*)&guest_mem_pool->mark_release_err_conflict);
 			
@@ -107,7 +107,7 @@ int virt_mark_page_release(struct page *page)
 	}
 	else
 	{
-		mark->pool_id = MEM_POOL_MAX +1;
+		mark->pool_id = guest_mem_pool->pool_max +1;
 		mark->alloc_id = guest_mem_pool->desc_max +1;
 		barrier();
 		mark->desc = guest_mem_pool->mem_ind;
@@ -376,18 +376,15 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	pool->args.task = task;
 	pool->args.kvm = kvm;
 	pool->hva = hva;
-	for(i = 0; i < MEM_POOL_MAX ; i++)
+	for(i = 1; i < MEM_POOL_MAX ; i++)
 	{
-		if(0 == i)
-		{
-			continue;
-		}
 		if(mem_pool_addr[i] != 0)
 		{
 			continue;
 		}
 		pool->pool_id = i;
 		pool->mem_ind = release_dsc;
+		pool->pool_max = MEM_POOL_MAX;
 		mem_pool_addr[i] = kmalloc(sizeof(struct virt_mem_pool),GFP_KERNEL);
 		if(mem_pool_addr[i])
 		{
@@ -499,7 +496,7 @@ int process_virt_page_release(void *page_mem,struct page *org_page)
 	if(pool_id > MEM_POOL_MAX)
 	{
 		if(pool_id != MEM_POOL_MAX +1)
-		printk("virt mem error in line%d\r\n ",__LINE__);
+		PONE_DEBUG("virt mem error \r\n");
 		return VIRT_MEM_FAIL;
 	}
 	if(NULL == mem_pool_addr[pool_id])
@@ -671,7 +668,7 @@ int walk_virt_page_release(struct virt_mem_pool *pool)
 	
 	if(pool->pool_id > MEM_POOL_MAX)
 	{
-		printk("virt mem error in line%d\r\n ",__LINE__);
+		PONE_DEBUG("virt mem error \r\n");
 		return -1;
 	}
 	

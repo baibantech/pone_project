@@ -14,7 +14,7 @@
 #include <linux/pagemap.h>
 #include <linux/mmu_notifier.h>
 #include <linux/swap.h>
-#define MEM_POOL_MAX 256
+#define MEM_POOL_MAX  1024
 struct virt_mem_args
 {
 	struct mm_struct *mm;
@@ -33,6 +33,7 @@ struct virt_mem_pool
 	int  pool_id;
 	unsigned long long mem_ind;
 	unsigned long long hva;
+	unsigned long long pool_max;
 	struct virt_mem_args args;
 	unsigned long long desc_max;
 	unsigned long long alloc_idx;
