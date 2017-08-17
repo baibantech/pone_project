@@ -28,9 +28,13 @@ PONE_TIMEPOINT_DEFINE(slice_changeref_start);
 PONE_TIMEPOINT_DEFINE(slice_changeref_end);
 
 PONE_TIMEPOINT_DEFINE(slice_page_recycle);
+PONE_TIMEPOINT_DEFINE(lf_order_que_write);
+PONE_TIMEPOINT_DEFINE(lf_order_que_read);
+
 
 pone_time_point* pone_time_array[] =
 {
+#if 0
 	PONE_TIMEPOINT_PTR(slice_out_que),
 	PONE_TIMEPOINT_PTR(slice_protect_ok),
 	PONE_TIMEPOINT_PTR(slice_protect_func),
@@ -48,6 +52,9 @@ pone_time_point* pone_time_array[] =
 	PONE_TIMEPOINT_PTR(slice_changeref_start),
 	PONE_TIMEPOINT_PTR(slice_changeref_end),
 	PONE_TIMEPOINT_PTR(slice_page_recycle),
+#endif
+	PONE_TIMEPOINT_PTR(lf_order_que_write),
+	PONE_TIMEPOINT_PTR(lf_order_que_read),
 	
 };
 

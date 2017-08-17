@@ -34,14 +34,15 @@ typedef struct pone_time_point_tag
 #define PONE_TIMEPOINT_SET(x,time) \
 {\
 	unsigned long long cur_time; \
-	atomic64_add(time ,(atomic64_t*)&x.time_total);\
+	unsigned long long result = time; \
+	atomic64_add(result ,(atomic64_t*)&x.time_total);\
 	atomic64_add(1,(atomic64_t*)&x.time_cnt);\
 	do \
 	{	\
 		cur_time = x.time_max; \
-		if(time > cur_time) \
+		if(result > cur_time) \
 		{\
-			if(cur_time == atomic64_cmpxchg((atomic64_t*)&x.time_max,cur_time,time))\
+			if(cur_time == atomic64_cmpxchg((atomic64_t*)&x.time_max,cur_time,result))\
 			{\
 				break;\
 			}\
@@ -55,9 +56,9 @@ typedef struct pone_time_point_tag
 	do \
 	{ \
 		cur_time = x.time_min; \
-		if(time < cur_time)\
+		if(result < cur_time)\
 		{\
-			if(cur_time == atomic64_cmpxchg((atomic64_t*)&x.time_min,cur_time,time))\
+			if(cur_time == atomic64_cmpxchg((atomic64_t*)&x.time_min,cur_time,result))\
 			{\
 				break; \
 			}\
@@ -86,5 +87,7 @@ PONE_TIMEPOINT_DEC(slice_changeref_func);
 PONE_TIMEPOINT_DEC(slice_changeref_start);
 PONE_TIMEPOINT_DEC(slice_changeref_end);
 PONE_TIMEPOINT_DEC(slice_page_recycle);
+PONE_TIMEPOINT_DEC(lf_order_que_write);
+PONE_TIMEPOINT_DEC(lf_order_que_read);
 
 #endif

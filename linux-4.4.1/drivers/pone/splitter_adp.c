@@ -21,12 +21,13 @@
 #include "vector.h"
 #include "chunk.h"
 #include "pone_time.h"
-
+#include "lf_order.h"
 #ifdef SLICE_OP_CLUSTER_QUE
 lfrwq_t *slice_cluster_que[64] = {NULL};
 lfrwq_t *slice_cluster_watch_que[64] = {NULL};
 lfrwq_reader * que_reader[64] =  {NULL};
 lfrwq_reader *watch_que_reader[64] = {NULL};
+orderq_h_t *slice_order_que[64] = {NULL};
 #endif
 DEFINE_SPINLOCK(sd_tree_lock);
 int *ljy_vmalloc_area = NULL;
@@ -39,6 +40,7 @@ DECLARE_WAIT_QUEUE_HEAD(pone_divide_thread_run);
 int pone_thread_num = 0;
 int pone_thread_interval = 2;
 
+int process_slice_order_que(orderq_h_t *oq,int thread);
 typedef struct pone_que_stat
 {
 	unsigned long long page_num;
@@ -248,7 +250,10 @@ static int splitter_process_thread(void *data)
 	__set_current_state(TASK_RUNNING);
 	do
 	{
+#if 0
 		ret = process_state_que(slice_cluster_que[thread_idx],reader,1);
+#endif
+		ret = process_slice_order_que(slice_order_que[thread_idx],1);
 		if(ret!= -2)
 		{
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -392,16 +397,17 @@ int pone_case_init(void)
 		{
 			slice_cluster_que[i] = lfrwq_init(8192*64,1024,2);
 			slice_cluster_watch_que[i] = lfrwq_init(8192,512,2);
-
-			if((NULL == slice_cluster_que[i])|| (NULL == slice_cluster_watch_que[i]))
+			
+			slice_order_que[i] = lfo_q_init(3);
+			if((NULL == slice_cluster_que[i])|| (NULL == slice_cluster_watch_que[i])||(NULL == slice_order_que[i]))
 			{
-				printk("init que err\r\n");
+				PONE_DEBUG("init que err\r\n");
 				return -1;
 			}
 			que_reader[i] = kmalloc(sizeof(lfrwq_reader),GFP_KERNEL);
 			if(NULL == que_reader[i])
 			{
-				printk("alloc que reader err\r\n");
+				PONE_DEBUG("alloc que reader err\r\n");
 				return -1;
 			}
 			
@@ -416,7 +422,6 @@ int pone_case_init(void)
 			
 			memset(watch_que_reader[i],0,sizeof(lfrwq_reader));
 			watch_que_reader[i]->local_idx = -1;
-
 		}
 
 	#endif
@@ -668,18 +673,18 @@ int lfrwq_in_cluster_watch_que(void *data,unsigned long que_id)
 void splitter_wakeup_cluster(void)
 {
 	int i;
-	int ret = 0;
+	unsigned long long  ret = 0;
 	for(i = 0;i < pone_thread_num ; i++)
 	{
-		ret += lfrwq_set_r_max_idx(slice_cluster_que[i],lfrwq_get_w_idx(slice_cluster_que[i]));
+		//ret += lfrwq_set_r_max_idx(slice_cluster_que[i],lfrwq_get_w_idx(slice_cluster_que[i]));
 		//ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
+		ret = lfo_get_count(slice_order_que[i]);
 		if(ret)
 		{
 			if(spt_thread_id[1 + pone_thread_interval*i]->state != TASK_RUNNING)
 			wake_up_process(spt_thread_id[1+pone_thread_interval*i]);		
 		}
 		ret = 0;
-
 	}
 	ret = 0;
 	
@@ -696,6 +701,31 @@ void wakeup_splitter_thread_by_que(long que_id)
 	lfrwq_set_r_max_idx(slice_cluster_que[que_id],lfrwq_get_w_idx(slice_cluster_que[que_id]));
 	if(spt_thread_id[1 + pone_thread_interval*que_id]->state != TASK_RUNNING)
 		wake_up_process(spt_thread_id[1+pone_thread_interval*que_id]);		
+}
+extern int pone_process_que_state(void *slice);
+int process_slice_order_que(orderq_h_t *oq,int thread)
+{
+	int cnt = 0;
+	u64 cmd = 0;
+	unsigned long long time_begin;
+
+	do
+	{
+		time_begin = rdtsc_ordered();
+		cmd = lfo_read(oq,thread);
+		if( 0 == cmd)
+		{
+			return -1;
+		}
+		PONE_TIMEPOINT_SET(lf_order_que_read,(rdtsc_ordered()-time_begin));
+		cnt++;
+		pone_process_que_state((void*)cmd);
+		if((cnt %10000) == 0)
+		{
+			schedule();
+		}
+	}while(1);
+	return 0;
 }
 
 #endif
