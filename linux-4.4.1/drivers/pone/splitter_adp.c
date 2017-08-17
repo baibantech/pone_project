@@ -42,7 +42,7 @@ int pone_thread_interval = 2;
 typedef struct pone_que_stat
 {
 	unsigned long long page_num;
-	unsigned long long slice_mm[64];
+	unsigned long long slice_mm[512];
 }pone_que_stat;
 
 pone_que_stat *pone_que_stat_ptr = NULL;
@@ -68,7 +68,7 @@ int pone_que_stat_lookup(unsigned long long page_mm)
 	int stat_id = page_mm %pone_thread_num;
 	int i = 0;
 
-	for(i = 0;i < 64 ;i++)
+	for(i = 0;i < 512 ;i++)
 	{
 		if(0 == pone_que_stat_ptr[stat_id].slice_mm[i])
 		{
@@ -80,7 +80,7 @@ int pone_que_stat_lookup(unsigned long long page_mm)
 			break;
 		}
 	}
-	if( i == 64)
+	if( i == 512)
 	{
 		PONE_DEBUG("max mm in one que\r\n");
 	}
@@ -97,11 +97,11 @@ void show_pone_que_stat(void)
 		for(i = 0 ; i < pone_thread_num; i++)
 		{
 			printk("que index %d,page_num %lld\r\n",i ,pone_que_stat_ptr[i].page_num);
-			for(j = 0 ;j < 64 ; j++)
+			for(j = 0 ;j < 512 ; j++)
 			{
 				if(pone_que_stat_ptr[i].slice_mm[j]!= 0)
 				{
-					printk("que index %d,slice_mm 0x%llx\r\n",i,pone_que_stat_ptr[i].slice_mm[j]);
+					printk("under que slice_mm 0x%llx\r\n",pone_que_stat_ptr[i].slice_mm[j]);
 				}
 			}
 		}
