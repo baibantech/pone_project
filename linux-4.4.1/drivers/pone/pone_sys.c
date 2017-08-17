@@ -419,7 +419,7 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	//show_page_err_info();
 	//add_slice_volatile_cnt_test(0,1000);
 	show_slice_volatile_cnt();
-	//show_pone_time_stat();
+	show_pone_time_stat();
 	spt_threadinfo_show();
 	return sprintf(buf,"check dmesg buffer11111");
 }

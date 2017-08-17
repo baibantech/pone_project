@@ -17,9 +17,12 @@
 #include <pone/slice_state_adpter.h>
 #include <pone/virt_release.h>
 #include  "splitter_adp.h"
+#include "lf_order.h"
+#include "pone_time.h"
 int deamon_scan_period = 5000;
 int deamon_merge_scan = 4;
 unsigned long long wakeup_deamon_cnt = 0;
+extern orderq_h_t *slice_order_que[64];
 
 slice_state_control_block *deamon_volatile  = NULL;
 slice_state_control_block *deamon_scan_volatile = NULL;
@@ -437,7 +440,7 @@ static int splitter_daemon_thread(void *data)
 	long que_id;
 	struct page *page = NULL;
 	void	*page_addr = NULL;
-
+	unsigned long long time_begin = 0;
 	__set_current_state(TASK_RUNNING);
 
 	do
@@ -538,8 +541,12 @@ get_que:
 						}
 						slice_deamon_find_watch++;
 					}
-					
+					time_begin = rdtsc_ordered();
+					lfo_write(slice_order_que[que_id],0,(unsigned long)page);
+					PONE_TIMEPOINT_SET(lf_order_que_write,(rdtsc_ordered()- time_begin));
+#if 0					
 retry:
+
 					if(-1 == lfrwq_in_cluster_que(page,que_id))	
 					{
 						slice_deamon_in_que_fail++;
@@ -557,6 +564,7 @@ retry:
 						schedule();
 						goto retry;
 					}
+#endif
 				}
 
 			}
