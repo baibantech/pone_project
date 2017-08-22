@@ -224,8 +224,6 @@ int virt_mem_guest_init(void)
     return 0;
 }
 
-
-
 int virt_mem_release_init(void)
 {
 	void *page_addr = NULL;
@@ -255,15 +253,12 @@ int virt_mem_release_init(void)
 			{
 				mem_pool_addr[i] = NULL;
 			}
-
 #ifdef GUEST_KERNEL
 			virt_mem_guest_init();	
 #endif
 			return 0;
 		}
-
 	}
-	
 	return -1;
 }
  

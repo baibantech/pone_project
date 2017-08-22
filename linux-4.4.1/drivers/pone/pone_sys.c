@@ -17,6 +17,7 @@
 #include <pone/pone.h>
 #include <pone/slice_state_adpter.h>
 #include <pone/lf_rwq.h>
+#include "lf_order.h"
 #include "vector.h"
 #include "chunk.h"
 
@@ -227,6 +228,7 @@ int slice_file_info_get(char *buf)
 
 extern void debug_lower_cluster_info_show(void);
 extern void show_pone_que_stat(void);
+extern void show_order_que_info(void);
 static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int len = 0;
@@ -311,8 +313,9 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 	len += slice_file_info_get(buf+len);
     
-    //debug_lower_cluster_info_show();
+    debug_lower_cluster_info_show();
 	show_pone_que_stat();
+	//show_order_que_info();
 	return len;
 
 }

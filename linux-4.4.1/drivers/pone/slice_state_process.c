@@ -258,9 +258,7 @@ int pone_slice_add_mapcount_process(void  *slice)
 		}
 		else if(SLICE_FIX == cur_state)
 		{
-			preempt_disable();
 			result = insert_sd_tree(slice_idx);
-			preempt_enable();
 			if(result != page)
 			{
 				PONE_DEBUG("error in mapcount add proc\r\n");	

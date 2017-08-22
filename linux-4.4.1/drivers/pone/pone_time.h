@@ -89,5 +89,8 @@ PONE_TIMEPOINT_DEC(slice_changeref_end);
 PONE_TIMEPOINT_DEC(slice_page_recycle);
 PONE_TIMEPOINT_DEC(lf_order_que_write);
 PONE_TIMEPOINT_DEC(lf_order_que_read);
+PONE_TIMEPOINT_DEC(dvd_data_insert);
+PONE_TIMEPOINT_DEC(dvd_data_delete);
+PONE_TIMEPOINT_DEC(dvd_vb_del_ins);
 
 #endif

@@ -1570,28 +1570,22 @@ spt_sort_info *spt_order_array_init(cluster_head_t *pclst, int size)
     psort_ar->size = size;
     return psort_ar;
 }
-spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
+int spt_cluster_sort(cluster_head_t *pclst, spt_sort_info *psort)
 {
     spt_vec **stack;
-    spt_sort_info *psort;
     int cur_data, cur_vecid, index;
     spt_vec *pcur, cur_vec;
 //    spt_vec_f st_vec_f;
     spt_dh *pdh;
 
-    stack = (spt_vec **)vmalloc(4096*8*8);
+    stack = (spt_vec **)kmalloc(4096*8*8, GFP_ATOMIC);
     if(stack == NULL)
     {
-        return 0;
+        return SPT_ERR;
     }
     index = 0;
-    psort = spt_order_array_init(pclst, pclst->data_total);
-    if(psort == NULL)
-    {
-        vfree(stack);
-        return 0;
-    }
-    cur_data = SPT_INVALID;
+
+    cur_data = SPT_INVALID;  
 
     cur_vecid = pclst->vec_head;
     pcur = (spt_vec *)vec_id_2_ptr(pclst, pclst->vec_head);
@@ -1600,7 +1594,7 @@ spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
     if(cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL)
     {
         printk("cluster is null\r\n");
-        return NULL;
+        return SPT_ERR;
     }
     #if 0
     rank = pclst->used_dblk_cnt;
@@ -1684,9 +1678,9 @@ spt_sort_info *spt_cluster_sort(cluster_head_t *pclst)
             }
         }
     }
-sort_exit:    
-    vfree(stack);
-    return psort;
+sort_exit:
+    kfree(stack);
+    return SPT_OK;
 }
 
 void spt_divided_info_free(spt_divided_info *pdvd_info)
@@ -1703,7 +1697,7 @@ void spt_divided_info_free(spt_divided_info *pdvd_info)
             if(vb_array[loop])
                 pclst->freedata(vb_array[loop]);                
         }        
-        kfree(pdvd_info->up_vb_arr);
+        vfree(pdvd_info->up_vb_arr);
     }
     if(pdvd_info->down_vb_arr)
     {
@@ -1714,66 +1708,34 @@ void spt_divided_info_free(spt_divided_info *pdvd_info)
             if(vb_array[loop])
                 pclst->freedata(vb_array[loop]);                
         }
-        kfree(pdvd_info->down_vb_arr);
+        vfree(pdvd_info->down_vb_arr);
     }
-    kfree(pdvd_info);
+    vfree(pdvd_info);
     return;
 }
-
-
-spt_divided_info *spt_divided_info_init(spt_sort_info *psort, int dvd_times, 
-                                        cluster_head_t *puclst, cluster_head_t *pdclst)
+spt_divided_info *spt_divided_mem_init(int dvd_times, cluster_head_t *pdclst)
 {
     spt_divided_info *pdvd_info;
-    int loop, n;
-    char **u_vb_array, **d_vb_array;
-    char *pdata, *psrc, *pNth_data;
     
-    pdvd_info = (spt_divided_info *)kmalloc(sizeof(spt_divided_info),GFP_ATOMIC);
+    pdvd_info = (spt_divided_info *)vmalloc(sizeof(spt_divided_info));
     memset(pdvd_info, 0, sizeof(pdvd_info));
-    pdvd_info->divided_times = dvd_times;
-    pdvd_info->down_is_bottom = pdclst->is_bottom;
-    pdvd_info->puclst = puclst;
-
-    pdvd_info->up_vb_arr = (char **)kmalloc(sizeof(char *)*dvd_times,GFP_ATOMIC);
+    pdvd_info->up_vb_arr = (char **)vmalloc(sizeof(char *)*dvd_times);
     if(pdvd_info->up_vb_arr == NULL)
     {
         spt_divided_info_free(pdvd_info);
         return NULL;
     }
-    u_vb_array = pdvd_info->up_vb_arr;
-    pdvd_info->down_vb_arr = (char **)kmalloc(sizeof(char *)*dvd_times,GFP_ATOMIC);
+    memset(pdvd_info->up_vb_arr, 0 , sizeof(char *)*dvd_times);
+    pdvd_info->down_vb_arr = (char **)vmalloc(sizeof(char *)*dvd_times);
     if(pdvd_info->down_vb_arr == NULL)
     {
         spt_divided_info_free(pdvd_info);
         return NULL;
-    }   
-    d_vb_array = pdvd_info->down_vb_arr;
-    n = 0;
-    for(loop=0; loop<dvd_times; loop++)
-    {
-        n += SPT_DVD_CNT_PER_TIME;
-        pNth_data = get_about_Nth_smallest_data(psort, n);
-        psrc = pdclst->get_key_in_tree(pNth_data);
+    }  
+    memset(pdvd_info->down_vb_arr, 0 , sizeof(char *)*dvd_times);
+    pdvd_info->divided_times = dvd_times;
+    pdvd_info->down_is_bottom = pdclst->is_bottom;
 
-        pdata = puclst->construct_data(psrc);
-        if(NULL == pdata)
-        {
-            spt_divided_info_free(pdvd_info);
-            return NULL;
-        }
-        u_vb_array[loop] = pdata;
-
-        pdata = pdclst->construct_data(psrc);
-        if(NULL == pdata)
-        {
-            spt_divided_info_free(pdvd_info);
-            return NULL;
-        }
-        d_vb_array[loop] = pdata;
-        pdclst->get_key_in_tree_end(psrc);
-
-    }
     pdvd_info->pdst_clst = cluster_init(pdvd_info->down_is_bottom, 
                                         pdclst->startbit, 
                                         pdclst->endbit, 
@@ -1787,8 +1749,45 @@ spt_divided_info *spt_divided_info_init(spt_sort_info *psort, int dvd_times,
         spt_divided_info_free(pdvd_info);
         return NULL;
     }
-   
     return pdvd_info;
+}
+
+int spt_divided_info_init(spt_divided_info *pdvd_info, spt_sort_info *psort,cluster_head_t *puclst)
+{
+    int loop, n;
+    char **u_vb_array, **d_vb_array;
+    char *pdata, *psrc, *pNth_data;
+    
+    pdvd_info->puclst = puclst;
+
+    u_vb_array = pdvd_info->up_vb_arr;
+    d_vb_array = pdvd_info->down_vb_arr;
+    
+    n = 0;
+    for(loop=0; loop<pdvd_info->divided_times; loop++)
+    {
+        n += SPT_DVD_CNT_PER_TIME;
+        pNth_data = get_about_Nth_smallest_data(psort, n);
+        psrc = pdvd_info->pdst_clst->get_key_in_tree(pNth_data);
+
+        pdata = puclst->construct_data(psrc);
+        if(NULL == pdata)
+        {
+            return SPT_ERR;
+        }
+        u_vb_array[loop] = pdata;
+
+        pdata = pdvd_info->pdst_clst->construct_data(psrc);
+        if(NULL == pdata)
+        {
+            return SPT_ERR;
+        }
+        d_vb_array[loop] = pdata;
+        pdvd_info->pdst_clst->get_key_in_tree_end(psrc);
+
+    }
+   
+    return SPT_OK;
 }
 
 int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
@@ -1802,19 +1801,50 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
     cluster_head_t *plower_clst, *pdst_clst;
     spt_dh *pdh;
     query_info_t qinfo = {0};
+	u64 start, end;
 
     pext_head = pup;
     plower_clst = pext_head->plower_clst;
-   
+
+    pdinfo = spt_divided_mem_init(move_time, pext_head->plower_clst);
+    if(pdinfo == NULL)
+    {
+        spt_debug("spt_divided_mem_init return NULL\r\n");
+        return SPT_ERR;
+    }
+    psort = spt_order_array_init(pext_head->plower_clst, pext_head->plower_clst->data_total);
+    if(psort == NULL)
+    {
+        spt_debug("spt_order_array_init return NULL\r\n");
+        cluster_destroy(pdinfo->pdst_clst);
+        spt_divided_info_free(pdinfo);        
+        return SPT_ERR;
+    }
+    
     preempt_disable();
 	spt_thread_start(g_thrd_id);
     
-    psort = spt_cluster_sort(pext_head->plower_clst);
-    if(psort == NULL)
+    ret = spt_cluster_sort(pext_head->plower_clst, psort);
+    if(ret == SPT_ERR)
+    {
+        spt_thread_exit(g_thrd_id);
+        preempt_enable();    
+        spt_debug("spt_cluster_sort return ERR\r\n");
+        cluster_destroy(pdinfo->pdst_clst);
+        spt_divided_info_free(pdinfo);        
+        spt_order_array_free(psort);
         return SPT_ERR;
-    pdinfo = spt_divided_info_init(psort, move_time, pclst, pext_head->plower_clst);
+    }
+    ret = spt_divided_info_init(pdinfo, psort, pclst);
     spt_thread_exit(g_thrd_id);
     preempt_enable();
+    if(ret != SPT_OK)
+    {
+        spt_debug("spt_divided_info_init return ERR\r\n");
+        cluster_destroy(pdinfo->pdst_clst);
+        spt_divided_info_free(pdinfo);
+        return SPT_ERR;
+    }
 
 	pdst_clst = pdinfo->pdst_clst;
 
@@ -1868,6 +1898,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         {
             dataid = find_lowest_data(plower_clst, plower_clst->pstart);
             pdh = (spt_dh *)db_id_2_ptr(plower_clst, dataid);
+			start = rdtsc();
             while(1)
             {
                 ret = do_delete_data_no_free(plower_clst, pdh->pdata, 
@@ -1889,6 +1920,9 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                     spt_debug("divide delete error\r\n");
                 }
             }
+			PONE_TIMEPOINT_SET(dvd_data_delete,rdtsc()-start);
+			start = rdtsc();
+
             ret = do_insert_data(pdst_clst, pdh->pdata, 
                                  pdst_clst->get_key_in_tree,
                                  pdst_clst->get_key_in_tree_end);
@@ -1896,6 +1930,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
             {
                 spt_debug("divide insert error\r\n");
             }
+			PONE_TIMEPOINT_SET(dvd_data_insert,rdtsc()-start);
             if(dataid == ins_dvb_id)
             {
                 break;
@@ -1911,6 +1946,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                 spt_thread_start(g_thrd_id);
             }
         }
+		start = rdtsc();
         while(1)
         {
             dataid = find_lowest_data(plower_clst, plower_clst->pstart);
@@ -1972,6 +2008,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                 break;
             }
         }
+		PONE_TIMEPOINT_SET(dvd_vb_del_ins,rdtsc()-start);
         pext_head = (spt_dh_ext *)pdinfo->up_vb_arr[loop];
         pext_head->plower_clst = pdst_clst;
         if(loop > 0)
@@ -2014,10 +2051,17 @@ int spt_divided_scan(cluster_head_t *pclst)
     spt_sort_info *psort;
     spt_dh_ext *pdh_ext;
     cluster_head_t *plower_clst;
-    int i;
+    int i, ret;
 
-    psort = spt_cluster_sort(pclst);
+    psort = spt_order_array_init(pclst, pclst->data_total);
     if(psort == NULL)
+    {
+        spt_debug("spt_order_array_init return NULL\r\n");
+        return SPT_ERR;
+    }
+
+    ret = spt_cluster_sort(pclst, psort);
+    if(ret == SPT_ERR)
     {
         spt_debug("psort ERR\r\n");
         return SPT_ERR;
@@ -4119,7 +4163,7 @@ cluster_head_t *find_next_cluster(cluster_head_t *pclst, char *pdata)
     int ret;
     spt_dh *pdh;
     spt_dh_ext *pdext_h;
-    spt_vec *phang_vec, *pvec;
+    spt_vec *phang_vec, *pvec, vec;
 
 refind_next:
     memset(&qinfo,0,sizeof(query_info_t));
@@ -4143,13 +4187,14 @@ refind_next:
         else if(qinfo.cmp_result < 0)
         {
             pvec = (spt_vec *)vec_id_2_ptr(pclst, qinfo.vec_id);
-            if(pvec->type == SPT_VEC_DATA)
+            vec.val = pvec->val;
+            if(vec.type == SPT_VEC_DATA)
             {
                 return pdext_h->plower_clst;
             }
             else
             {
-                pvec = (spt_vec *)vec_id_2_ptr(pclst, pvec->rd);
+                pvec = (spt_vec *)vec_id_2_ptr(pclst, vec.rd);
                 ret = find_lowest_data(pclst, pvec);
                 if(ret == SPT_NULL)
                     goto refind_next;
@@ -4161,17 +4206,18 @@ refind_next:
         else
         {
             phang_vec = (spt_vec *)vec_id_2_ptr(pclst, pdext_h->hang_vec);
-            if(phang_vec->type == SPT_VEC_DATA)
+            vec.val = phang_vec->val;
+            if(vec.type == SPT_VEC_DATA)
             {
-                if(phang_vec->rd == SPT_NULL)
+                if(vec.rd == SPT_NULL)
                     goto refind_next;            
-                pdh = (spt_dh *)db_id_2_ptr(pclst, phang_vec->rd);
+                pdh = (spt_dh *)db_id_2_ptr(pclst, vec.rd);
                 pdext_h = (spt_dh_ext *)pdh->pdata;
                 return pdext_h->plower_clst;
             }
             else
             {
-                pvec = (spt_vec *)vec_id_2_ptr(pclst, phang_vec->rd);
+                pvec = (spt_vec *)vec_id_2_ptr(pclst, vec.rd);
                 ret = find_lowest_data(pclst, pvec);
                 if(ret == SPT_NULL)
                     goto refind_next;            
@@ -4218,7 +4264,7 @@ char *insert_data(cluster_head_t *pclst, char *pdata)
     }
     else
     {
-        spt_debug("find_data err!\r\n");
+        //spt_debug("find_data err!\r\n");
         spt_set_errno(ret);
         return 0;
     }
@@ -4383,7 +4429,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
 
 	plow_clst = plower_clst;
     
-    for(i=0;i< 300;i++)
+    for(i=1;i< 256;i++)
     {
         plower_clst = cluster_init(1, startbit, endbit, thread_num, pf, pf2, 
                                     pf_free, pf_con);
@@ -4406,7 +4452,9 @@ cluster_head_t *spt_cluster_init(u64 startbit,
             cluster_destroy(pclst);
             return NULL;
         }
-		get_random_bytes(pdh_ext->data,DATA_SIZE);
+        memset(pdh_ext->data, 0, DATA_SIZE);
+        *pdh_ext->data = i;
+//		get_random_bytes(pdh_ext->data,DATA_SIZE);
         pdh_ext->plower_clst = plower_clst;
         do_insert_data(pclst, (char *)pdh_ext, pclst->get_key_in_tree, pclst->get_key_in_tree_end);
         list_add(&plower_clst->c_list, &pclst->c_list);
@@ -5747,7 +5795,7 @@ u64 spt_atomic64_clear_bit_return(int nr, atomic64_t *v)
     return new_val;
 }
 
-
+u64 tick_debug[64] = {0};
 int spt_thread_start(int thread)
 {
 #if 0    
@@ -5760,6 +5808,9 @@ int spt_thread_start(int thread)
             return ret;
    }
 #endif 
+	if(tick_debug[thread]!=0 || thread != g_thrd_id)
+		BUG();
+	tick_debug[thread] = g_thrd_id + 1;
     spt_atomic64_set_bit(thread, (atomic64_t *)&g_thrd_h->online_map);
     smp_mb();
     return SPT_OK;
@@ -5769,6 +5820,12 @@ void spt_thread_exit(int thread)
 {
     u64 olmap, bwmap, new_val;
 
+	if(tick_debug[thread] ==0 || tick_debug[thread] != g_thrd_id + 1)
+	{
+		printk("$$$$$$thread:%d g_thrd_id:%d, tick_debug:%d\r\n", thread, g_thrd_id, tick_debug[thread]);
+		BUG();
+	}
+	tick_debug[thread] = 0;
     smp_mb();
     olmap = spt_atomic64_clear_bit_return(thread,(atomic64_t *)&g_thrd_h->online_map);
     do
@@ -6059,6 +6116,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
                     debug_dh_ext_print((spt_dh_ext *)pcur_data);
                 }
                 debug_data_print(data);
+                debug_print_2(data, 2);
 				if(pclst->is_bottom)
 				{
 					unsigned char *data_mem = NULL;
@@ -6719,6 +6777,7 @@ void debug_insert_all(void)
 }
 spt_sort_info *pdbg_sort;
 
+#if 0
 void debug_sort(cluster_head_t *pclst)
 {
     spt_dh_ext *pdh_ext;
@@ -6732,7 +6791,6 @@ void debug_sort(cluster_head_t *pclst)
     }
     spt_order_array_free(pdbg_sort);
 }
-#if 0
 void debug_vec_print(spt_vec_r *pvec_r, int vec_id)
 {
     printk("{down:%d, right:%d, pos:%lld, data:%d}[%d]\r\n",pvec_r->down, pvec_r->right, pvec_r->pos, pvec_r->data, vec_id);
