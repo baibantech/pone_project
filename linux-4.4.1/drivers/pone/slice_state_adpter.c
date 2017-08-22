@@ -618,6 +618,7 @@ void slice_per_cpu_count_init(void)
 
 void process_que_interrupt(void)
 {
+#if 0
 	int cpu = smp_processor_id();
 	int check  = per_cpu(process_enter_check,cpu);
 	lfrwq_reader *reader = NULL;
@@ -641,6 +642,7 @@ void process_que_interrupt(void)
 		reader = &per_cpu(int_slice_watch_que_reader,cpu);
 		process_state_que(slice_watch_que,reader,2);
 	}
+#endif
 	return;
 }
 

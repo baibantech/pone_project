@@ -75,7 +75,6 @@ extern int process_slice_check(void);
 extern int process_slice_file_check(unsigned long ino);
 
 extern int slice_que_resource_init(void);
-extern int process_state_que(lfrwq_t *qh,lfrwq_reader *reader,int op);
 extern int change_slice_state(unsigned int nid,unsigned long long slice_id,unsigned long long old_state,unsigned long long new_state);
 extern int is_pone_init(void);
 void set_deamon_run(void);
@@ -96,6 +95,10 @@ extern int pone_slice_free_check_process(void *slice);
 extern int pone_slice_watched_page(void *slice);
 extern int pone_slice_can_reuse(void *slice);
 extern int pone_slice_mark_volatile_cnt(void *slice, void *slice1);
+extern int pone_process_watch_que_state(void *args);
+extern int pone_process_deamon_que_state(void *slice);
+extern int pone_process_que_state(void *slice);
+
 static inline int slice_idx_to_node(unsigned long slice_idx)
 {
     int i ;

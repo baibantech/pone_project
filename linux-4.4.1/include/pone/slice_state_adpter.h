@@ -36,4 +36,6 @@ DECLARE_PER_CPU(int,in_que_cnt);
 DECLARE_PER_CPU(int,in_watch_que_cnt);
 DECLARE_PER_CPU(int,volatile_cnt);
 extern struct address_space *check_space ;
+extern long pone_get_slice_que_id(struct page *page);
+extern int pone_que_stat_lookup(unsigned long long page_mm);
 #endif

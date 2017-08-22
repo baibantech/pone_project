@@ -302,7 +302,6 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice deamon fine watch cnt: %lld\r\n",slice_deamon_find_watch);
 	len += sprintf(buf +len ,"slice deamon in que fail  cnt: %lld\r\n",slice_deamon_in_que_fail);
 	len += sprintf(buf +len ,"deamon task state: %d\r\n",spt_deamon_thread->state);
-	len += sprintf(buf +len ,"deamon que len: %d\r\n",lfrwq_len(slice_deamon_que));
 	
 	len += sprintf(buf +len ,"slice copy pte  count  : %lld\r\n",slice_copy_pte_cnt);
 	len += sprintf(buf +len ,"slice copy pte1  count  : %lld\r\n",slice_copy_pte_cnt1);

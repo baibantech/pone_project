@@ -313,93 +313,10 @@ int need_wakeup_deamon(void)
 }
 
 struct task_struct *spt_deamon_thread = NULL;
-lfrwq_t *slice_deamon_que = NULL;
+orderq_h_t *slice_deamon_order_que = NULL;
 unsigned long long slice_deamon_find_volatile = 0;
 unsigned long long slice_deamon_find_watch = 0;
 unsigned long long slice_deamon_in_que_fail = 0;
-#if 0
-static int splitter_daemon_thread(void *data)
-{
-	int i = 0;
-	int j = 0;
-	int k = 0;
-	unsigned int nid = 0;
-	long long mem_size = 0;
-	long long slice_num = 0;
-	long long *slice_map;
-	long long state_map = 0;
-	long long slice_state = 0;
-	unsigned long slice_idx = 0;
-	unsigned long slice_begin = 0;
-	int volatile_count = 0;
-	int need_repeat = 0;	
-	__set_current_state(TASK_RUNNING);
-
-	do
-	{
-
-		volatile_count = 0;
-		need_repeat =0;
-		for(i = 0 ; i<global_block->node_num;i++)
-		{
-			slice_map = global_block->slice_node[i].slice_state_map;
-			slice_num = global_block->slice_node[i].slice_num;
-			mem_size = global_block->slice_node[i].mem_size;
-			slice_begin = global_block->slice_node[i].slice_start;
-			for(j = 0;j < (mem_size/sizeof(long long)); j++)
-			{
-				state_map = *(slice_map+j);
-				if(0 == state_map)
-				{
-					continue;
-				}
-				for(k = 0;k < SLICE_NUM_PER_UNIT;k++)
-				{
-					slice_state = (state_map>>(k*SLICE_STATE_BITS))&SLICE_STATE_MASK;
-					if(SLICE_VOLATILE == slice_state)
-					{
-						if(0 != change_slice_state(i,j*SLICE_NUM_PER_UNIT+k,SLICE_VOLATILE,SLICE_ENQUE))
-						{
-							need_repeat++;
-							continue;
-						}
-						
-						slice_deamon_find_volatile++;
-						slice_idx = slice_begin + j*SLICE_NUM_PER_UNIT+k;
-retry:
-						if(-1 == lfrwq_inq(slice_deamon_que,pfn_to_page(slice_idx)))
-						{
-							schedule();
-							goto retry;
-						}
-						volatile_count++; 
-						if(0 == (volatile_count%1000))
-						{
-							lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
-							splitter_thread_wakeup();		
-						}
-
-					}
-				}			
-			}
-		}
-		if(need_repeat)
-		{
-			continue;
-		}
-		if(0 == volatile_count)		
-		{
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule();
-		}
-
-	}while(!kthread_should_stop());
-
-	return 0;
-
-}
-#endif
-
 unsigned long long slice_deamon_volatile_cnt[16] = {0};
 
 void show_slice_volatile_cnt(void)
@@ -515,6 +432,19 @@ get_cnt:
 
 						}
 					}
+
+					if(SLICE_WATCH == slice_state)
+					{
+						if(0 != change_slice_state(i,j,SLICE_WATCH,SLICE_WATCH_QUE))
+						{
+							need_repeat++;
+							continue;
+						}
+						slice_deamon_find_watch++;
+						lfo_write(slice_deamon_order_que,48,(unsigned long)page);	
+						continue;
+					}
+
 get_que:
 					que_id = pone_get_slice_que_id(page);
 					if((-1 == que_id) || (0 == que_id))
@@ -531,42 +461,11 @@ get_que:
 							continue;
 						}
 						slice_deamon_find_volatile++;
+						time_begin = rdtsc_ordered();
+						lfo_write(slice_order_que[que_id],0,(unsigned long)page);
+						PONE_TIMEPOINT_SET(lf_order_que_write,(rdtsc_ordered()- time_begin));
 					}
-					else
-					{
-						if(0 != change_slice_state(i,j,SLICE_WATCH,SLICE_WATCH_QUE))
-						{
-							need_repeat++;
-							continue;
-						}
-						slice_deamon_find_watch++;
-					}
-					time_begin = rdtsc_ordered();
-					lfo_write(slice_order_que[que_id],0,(unsigned long)page);
-					PONE_TIMEPOINT_SET(lf_order_que_write,(rdtsc_ordered()- time_begin));
-#if 0					
-retry:
-
-					if(-1 == lfrwq_in_cluster_que(page,que_id))	
-					{
-						slice_deamon_in_que_fail++;
-						wakeup_splitter_thread_by_que(que_id);
-#if 0
-						end_jiffies = get_jiffies_64();
-						cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
-						if(cost_time >deamon_scan_period)
-						{
-							deamon_sleep_period_in_que_fail++;
-							msleep(deamon_scan_period);
-							start_jiffies = get_jiffies_64();
-						}
-#endif
-						schedule();
-						goto retry;
-					}
-#endif
 				}
-
 			}
 		}
 		
@@ -583,8 +482,6 @@ retry:
 		{	
 			msleep(deamon_scan_period - cost_time);
 		}
-
-
 	}while(!kthread_should_stop());
 	return 0;
 }
@@ -611,27 +508,20 @@ int slice_deamon_init(void)
 	ret += deamon_slice_state_control_init(&deamon_scan_volatile);
 	if(ret != 0)
 	{
+		PONE_DEBUG("deamon slice map init err\r\n");
 		return -1;
 	}
-
-	slice_deamon_que = lfrwq_init(8192*32,2048,50);
-    if(!slice_deamon_que)
-    {
-        return -1;
-    }
-	
-	for_each_online_cpu(cpu)
+	slice_deamon_order_que = lfo_q_init(40);
+	if(NULL == slice_deamon_order_que)
 	{
-		reader = &per_cpu(int_slice_deamon_que_reader,cpu);
-		memset(reader,0,sizeof(lfrwq_reader));
-		reader->local_idx = -1;
+		PONE_DEBUG("deamon slice order que init err\r\n");
+		return -1;
 	}
-
 	spt_deamon_thread = kthread_create(splitter_daemon_thread,NULL,"spdeamon");
 	if(IS_ERR(spt_deamon_thread))
 	{
 		spt_deamon_thread = NULL;
-		printk("err create spt_daemon thread\r\n");
+		PONE_DEBUG("err create spt_daemon thread\r\n");
 		return -1;
 	}
 	else

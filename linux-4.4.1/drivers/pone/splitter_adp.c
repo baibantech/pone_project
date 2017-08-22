@@ -23,11 +23,9 @@
 #include "pone_time.h"
 #include "lf_order.h"
 #ifdef SLICE_OP_CLUSTER_QUE
-lfrwq_t *slice_cluster_que[64] = {NULL};
-lfrwq_t *slice_cluster_watch_que[64] = {NULL};
-lfrwq_reader * que_reader[64] =  {NULL};
-lfrwq_reader *watch_que_reader[64] = {NULL};
 orderq_h_t *slice_order_que[64] = {NULL};
+orderq_h_t *slice_watch_order_que[64] = {NULL};
+extern orderq_h_t *slice_deamon_order_que;
 #endif
 DEFINE_SPINLOCK(sd_tree_lock);
 int *ljy_vmalloc_area = NULL;
@@ -41,6 +39,8 @@ int pone_thread_num = 0;
 int pone_thread_interval = 2;
 
 int process_slice_order_que(orderq_h_t *oq,int thread);
+int process_slice_watch_order_que(orderq_h_t *oq,int thread);
+int process_slice_deamon_order_que(orderq_h_t *oq,int thread);
 typedef struct pone_que_stat
 {
 	unsigned long long page_num;
@@ -240,9 +240,6 @@ static int splitter_process_thread(void *data)
 {
 	int cpu = smp_processor_id();
 	long thread_idx = (long)data;
-	lfrwq_reader *watch_reader = watch_que_reader[thread_idx];
-	lfrwq_reader *reader =  que_reader[thread_idx];
-	lfrwq_reader *deamon_reader = &per_cpu(int_slice_deamon_que_reader,cpu);
 	int ret = 0;
 	int w_ret = 0;
 	int d_ret = 0;
@@ -250,11 +247,10 @@ static int splitter_process_thread(void *data)
 	__set_current_state(TASK_RUNNING);
 	do
 	{
-#if 0
-		ret = process_state_que(slice_cluster_que[thread_idx],reader,1);
-#endif
 		ret = process_slice_order_que(slice_order_que[thread_idx],1);
-		if(ret!= -2)
+		d_ret = process_slice_deamon_order_que(slice_deamon_order_que,thread_idx);
+		w_ret = process_slice_watch_order_que(slice_watch_order_que[thread_idx],1);
+		if((ret!= -2)||(d_ret != -2)||(w_ret != -2))
 		{
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule();
@@ -263,54 +259,8 @@ static int splitter_process_thread(void *data)
 	}while(!kthread_should_stop());
 
 	return 0;
-}
-#else
-static int splitter_process_thread(void *data)
-{
-	int cpu = smp_processor_id();
-	int check  = per_cpu(process_enter_check,cpu);
-	lfrwq_reader *watch_reader =  &per_cpu(int_slice_watch_que_reader,cpu);
-	lfrwq_reader *reader =  &per_cpu(int_slice_que_reader,cpu);
-	lfrwq_reader *deamon_reader = &per_cpu(int_slice_deamon_que_reader,cpu);
-	int ret = 0;
-	int w_ret = 0;
-	int d_ret = 0;
-	__set_current_state(TASK_RUNNING);
-	do
-	{
-		if(cpu%2)
-		{
-			w_ret = process_state_que(slice_watch_que,watch_reader);
-			ret = process_state_que(slice_que,reader);
-		}
-		else
-		{
-			ret = process_state_que(slice_que,reader);
-			w_ret = process_state_que(slice_watch_que,watch_reader);
-		}
-
-		if(per_cpu(volatile_cnt,cpu))
-		{
-			splitter_deamon_wakeup();
-			set_deamon_run();
-			per_cpu(volatile_cnt,cpu) = 0;	
-		}
-
-		d_ret = process_state_que(slice_deamon_que,deamon_reader);
-		
-		if((w_ret != -2) && (ret!= -2)&&(d_ret !=-2))
-		{
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule();
-		}
-
-	}while(!kthread_should_stop());
-
-	return 0;
-
 }
 #endif
-
 
 void splitter_thread_wakeup(void)
 {
@@ -395,33 +345,14 @@ int pone_case_init(void)
 	#ifdef SLICE_OP_CLUSTER_QUE
 		for(i = 0 ; i < pone_thread_num;i++)
 		{
-			slice_cluster_que[i] = lfrwq_init(8192*64,1024,2);
-			slice_cluster_watch_que[i] = lfrwq_init(8192,512,2);
 			
 			slice_order_que[i] = lfo_q_init(3);
-			if((NULL == slice_cluster_que[i])|| (NULL == slice_cluster_watch_que[i])||(NULL == slice_order_que[i]))
+			slice_watch_order_que[i] = lfo_q_init(thread_num);
+			if((NULL == slice_order_que[i])||(NULL == slice_watch_order_que[i]))
 			{
 				PONE_DEBUG("init que err\r\n");
 				return -1;
 			}
-			que_reader[i] = kmalloc(sizeof(lfrwq_reader),GFP_KERNEL);
-			if(NULL == que_reader[i])
-			{
-				PONE_DEBUG("alloc que reader err\r\n");
-				return -1;
-			}
-			
-			memset(que_reader[i],0,sizeof(lfrwq_reader));
-			que_reader[i]->local_idx = -1;
-			watch_que_reader[i] = kmalloc(sizeof(lfrwq_reader),GFP_KERNEL);
-			if(NULL == watch_que_reader[i])
-			{
-				printk("alloc watch que reader err \r\n");
-				return -1;
-			}
-			
-			memset(watch_que_reader[i],0,sizeof(lfrwq_reader));
-			watch_que_reader[i]->local_idx = -1;
 		}
 
 	#endif
@@ -661,24 +592,14 @@ try_again:
 
 
 #ifdef SLICE_OP_CLUSTER_QUE
-int lfrwq_in_cluster_que(void *data,unsigned long que_id)
-{
-	return lfrwq_inq(slice_cluster_que[que_id%pone_thread_num],data);
-}
-
-int lfrwq_in_cluster_watch_que(void *data,unsigned long que_id)
-{
-	return lfrwq_inq(slice_cluster_watch_que[que_id%pone_thread_num],data);
-}
 void splitter_wakeup_cluster(void)
 {
 	int i;
 	unsigned long long  ret = 0;
 	for(i = 0;i < pone_thread_num ; i++)
 	{
-		//ret += lfrwq_set_r_max_idx(slice_cluster_que[i],lfrwq_get_w_idx(slice_cluster_que[i]));
-		//ret += lfrwq_set_r_max_idx(slice_cluster_watch_que[i],lfrwq_get_w_idx(slice_cluster_watch_que[i]));
 		ret = lfo_get_count(slice_order_que[i]);
+		ret += lfo_get_count(slice_watch_order_que[i]);
 		if(ret)
 		{
 			if(spt_thread_id[1 + pone_thread_interval*i]->state != TASK_RUNNING)
@@ -688,7 +609,7 @@ void splitter_wakeup_cluster(void)
 	}
 	ret = 0;
 	
-	ret += lfrwq_set_r_max_idx(slice_deamon_que,lfrwq_get_w_idx(slice_deamon_que));
+	ret = lfo_get_count(slice_deamon_order_que);	
 	if(ret)
 	{
 		splitter_thread_wakeup();
@@ -698,11 +619,10 @@ void splitter_wakeup_cluster(void)
 void wakeup_splitter_thread_by_que(long que_id)
 {
 	que_id = que_id%pone_thread_num;
-	lfrwq_set_r_max_idx(slice_cluster_que[que_id],lfrwq_get_w_idx(slice_cluster_que[que_id]));
 	if(spt_thread_id[1 + pone_thread_interval*que_id]->state != TASK_RUNNING)
 		wake_up_process(spt_thread_id[1+pone_thread_interval*que_id]);		
 }
-extern int pone_process_que_state(void *slice);
+
 int process_slice_order_que(orderq_h_t *oq,int thread)
 {
 	int cnt = 0;
@@ -728,4 +648,53 @@ int process_slice_order_que(orderq_h_t *oq,int thread)
 	return 0;
 }
 
+int process_slice_watch_order_que(orderq_h_t *oq,int thread)
+{
+	int cnt = 0;
+	u64 cmd = 0;
+	unsigned long long time_begin;
+
+	do
+	{
+		time_begin = rdtsc_ordered();
+		cmd = lfo_read(oq,thread);
+		if( 0 == cmd)
+		{
+			return -1;
+		}
+		PONE_TIMEPOINT_SET(lf_order_que_read,(rdtsc_ordered()-time_begin));
+		cnt++;
+		pone_process_watch_que_state((void*)cmd);
+		if((cnt %10000) == 0)
+		{
+			schedule();
+		}
+	}while(1);
+	return 0;
+}
+
+int process_slice_deamon_order_que(orderq_h_t *oq,int thread)
+{
+	int cnt = 0;
+	u64 cmd = 0;
+	unsigned long long time_begin;
+
+	do
+	{
+		time_begin = rdtsc_ordered();
+		cmd = lfo_read(oq,thread);
+		if( 0 == cmd)
+		{
+			return -1;
+		}
+		PONE_TIMEPOINT_SET(lf_order_que_read,(rdtsc_ordered()-time_begin));
+		cnt++;
+		pone_process_deamon_que_state((void*)cmd);
+		if((cnt %10000) == 0)
+		{
+			schedule();
+		}
+	}while(1);
+	return 0;
+}
 #endif
