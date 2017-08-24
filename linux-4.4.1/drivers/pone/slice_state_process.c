@@ -571,14 +571,7 @@ int pone_process_watch_que_state(void *args)
 	{
 		cur_state = get_slice_state(nid,slice_id);
 		
-		if(SLICE_IDLE == cur_state){
-			/*page free by sys*/
-			free_slice(slice_idx);
-			atomic64_add(1,(atomic64_t*)&slice_mem_que_free);
-			ret = PONE_OK;
-			break;
-		}
-		else if(SLICE_WATCH_QUE == cur_state)
+	    if(SLICE_WATCH_QUE == cur_state)
 		{
 			if(SLICE_OK == change_reverse_ref(slice_idx,new_slice_idx))
 			{
@@ -595,10 +588,11 @@ int pone_process_watch_que_state(void *args)
 				delete_sd_tree(slice_idx,SLICE_FIX);
 				put_page(old_page);
 			}
+			break;
 		}
 		else if(SLICE_CHG == cur_state)
 		{
-			
+			delete_sd_tree(slice_idx,SLICE_FIX);
 			if(0 == change_slice_state(nid,slice_id,SLICE_CHG,SLICE_VOLATILE)){
 				ret = PONE_OK;
 				break;
@@ -609,7 +603,6 @@ int pone_process_watch_que_state(void *args)
 			PONE_DEBUG("slice state err in out que %lld\r\n",cur_state);
 			break;
 		}
-		
 	}while(1);
 
 	kfree(args);
@@ -711,7 +704,7 @@ int pone_process_deamon_que_state(void *slice)
 					}
 					arg->old_slice = org_slice;
 					arg->new_slice = result;
-					lfo_write(slice_watch_order_que[que_id],49,(unsigned long )arg);
+					lfo_write(slice_watch_order_que[que_id],smp_processor_id(),(unsigned long )arg);
 				}
 				break;
 			}

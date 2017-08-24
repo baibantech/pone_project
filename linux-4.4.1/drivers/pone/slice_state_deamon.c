@@ -511,7 +511,7 @@ int slice_deamon_init(void)
 		PONE_DEBUG("deamon slice map init err\r\n");
 		return -1;
 	}
-	slice_deamon_order_que = lfo_q_init(40);
+	slice_deamon_order_que = lfo_q_init(50);
 	if(NULL == slice_deamon_order_que)
 	{
 		PONE_DEBUG("deamon slice order que init err\r\n");

@@ -309,12 +309,8 @@ static ssize_t pone_info_show(struct kobject *kobj, struct kobj_attribute *attr,
 	len += sprintf(buf +len ,"slice copy pte1  count  : %lld\r\n",slice_copy_pte_cnt1);
 	
 	len += sprintf(buf +len ,"tree page free  cnt: %lld\r\n",page_free_cnt);
+	len += sprintf(buf +len , "page recycle count %d\r\n",page_count(release_merge_page)-1);
 
-	len += slice_file_info_get(buf+len);
-    
-    debug_lower_cluster_info_show();
-	show_pone_que_stat();
-	//show_order_que_info();
 	return len;
 
 }
@@ -423,6 +419,8 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	show_slice_volatile_cnt();
 	show_pone_time_stat();
 	spt_threadinfo_show();
+    debug_lower_cluster_info_show();
+	show_pone_que_stat();
 	return sprintf(buf,"check dmesg buffer11111");
 }
 

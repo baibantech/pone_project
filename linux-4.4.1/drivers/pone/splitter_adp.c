@@ -249,7 +249,7 @@ static int splitter_process_thread(void *data)
 	{
 		ret = process_slice_order_que(slice_order_que[thread_idx],1);
 		d_ret = process_slice_deamon_order_que(slice_deamon_order_que,thread_idx);
-		w_ret = process_slice_watch_order_que(slice_watch_order_que[thread_idx],1);
+		w_ret = process_slice_watch_order_que(slice_watch_order_que[thread_idx],smp_processor_id());
 		if((ret!= -2)||(d_ret != -2)||(w_ret != -2))
 		{
 			set_current_state(TASK_INTERRUPTIBLE);

@@ -16,6 +16,7 @@ extern unsigned long long get_slice_state_by_id(unsigned long slice_idx);
 extern pmd_t *mm_find_pmd(struct mm_struct *mm,unsigned long long address);
 struct page *release_merge_page = NULL;
 
+static DEFINE_SPINLOCK(pool_reg_lock);
 
 EXPORT_SYMBOL(release_merge_page);
 
@@ -308,13 +309,14 @@ void print_host_virt_mem_pool(void)
 			}
 			
 			pool =  (struct virt_mem_pool*)kmap(begin_page);
+			printk("pool idx is %d\r\n",i);
+			printk("pool page addr is %p\r\n",begin_page);
 			print_virt_mem_pool(pool);
 			//walk_virt_page_release(pool);
 			kunmap(begin_page);
+			put_page(begin_page);
 		}
-
 	}
-
 }
 
 
@@ -328,7 +330,7 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	struct virt_mem_pool *pool = NULL;
 	int ret;
 	int i = 0;
-	printk("gfn is %lx\r\n",gfn);
+	//printk("gfn is %lx\r\n",gfn);
 
 	if(NULL == kvm)
 	{
@@ -339,7 +341,7 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 		hva = gfn_to_hva(kvm,gfn);
 	}
 
-	printk("hva is %lx\r\n",hva);
+	//printk("hva is %lx\r\n",hva);
 	vma = find_vma(mm,hva);
 #if 0
 	begin_page = follow_page(vma,hva,FOLL_TOUCH);
@@ -351,7 +353,7 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	}
 	
 	pool =  (struct virt_mem_pool*)kmap(begin_page);
-	print_virt_mem_pool(pool);
+	//print_virt_mem_pool(pool);
 	if(pool->magic != 0xABABABABABABABABULL)
 	{
 		printk("virt mem error in line%d\r\n ",__LINE__);
@@ -371,6 +373,7 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	pool->args.task = task;
 	pool->args.kvm = kvm;
 	pool->hva = hva;
+	spin_lock(&pool_reg_lock);
 	for(i = 1; i < MEM_POOL_MAX ; i++)
 	{
 		if(mem_pool_addr[i] != 0)
@@ -384,20 +387,25 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 		if(mem_pool_addr[i])
 		{
 			memcpy(mem_pool_addr[i],pool,sizeof(struct virt_mem_pool));
-			print_virt_mem_pool(mem_pool_addr[i]);
+			printk("page recycle reg pool id %d \r\n",pool->pool_id);
+			printk("pool page addr %p \r\n",begin_page);
+			//print_virt_mem_pool(mem_pool_addr[i]);
 			kunmap(begin_page);
 			put_page(begin_page);
+			spin_unlock(&pool_reg_lock);
 			return 0;
 		}
 		
 		printk("virt mem error in line%d\r\n ",__LINE__);
 		kunmap(begin_page);
 		put_page(begin_page);
+		spin_unlock(&pool_reg_lock);
 		return -1;
 	}
 	printk("virt mem error in line%d\r\n ",__LINE__);
 	kunmap(begin_page);
 	put_page(begin_page);
+	spin_unlock(&pool_reg_lock);
 	return -1;
 }
 EXPORT_SYMBOL(mem_pool_reg);
@@ -421,6 +429,7 @@ int is_in_mem_pool(struct mm_struct *mm)
 int delete_mm_in_pool(struct mm_struct *mm)
 {
 	int i =0;
+	spin_lock(&pool_reg_lock);
 	for(i =0 ; i < MEM_POOL_MAX; i++)
 	{
 		if(mem_pool_addr[i]!=NULL)
@@ -432,6 +441,8 @@ int delete_mm_in_pool(struct mm_struct *mm)
 			}
 		}
 	}
+	spin_unlock(&pool_reg_lock);
+	return 0;
 }
 int pone_page_recycle_enable = 1;
 
