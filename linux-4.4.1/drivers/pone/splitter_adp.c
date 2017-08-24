@@ -354,7 +354,6 @@ int pone_case_init(void)
 				return -1;
 			}
 		}
-
 	#endif
 	
 	pone_que_stat_init();	
@@ -410,6 +409,8 @@ char * insert_sd_tree(unsigned long slice_idx)
 	if(page)
 	{
 //		spin_lock(&sd_tree_lock);
+		
+		preempt_disable();
 		spt_thread_start(g_thrd_id);
 		//record_tree(page,1);
 		r_data = insert_data(pgclst,(char*)page);
@@ -418,7 +419,7 @@ char * insert_sd_tree(unsigned long slice_idx)
 			printk("cpu error !!!!!!!!!!!!!!\r\n");
 		}
 		spt_thread_exit(g_thrd_id);
-		
+		preempt_enable();
 //		spin_unlock(&sd_tree_lock);
 		if(r_data !=NULL)
 		{
@@ -629,6 +630,11 @@ int process_slice_order_que(orderq_h_t *oq,int thread)
 	u64 cmd = 0;
 	unsigned long long time_begin;
 
+	if(!oq)
+	{
+		return -1;
+	}
+	
 	do
 	{
 		time_begin = rdtsc_ordered();
@@ -653,6 +659,11 @@ int process_slice_watch_order_que(orderq_h_t *oq,int thread)
 	int cnt = 0;
 	u64 cmd = 0;
 	unsigned long long time_begin;
+	
+	if(!oq)
+	{
+		return -1;
+	}
 
 	do
 	{
@@ -679,6 +690,11 @@ int process_slice_deamon_order_que(orderq_h_t *oq,int thread)
 	u64 cmd = 0;
 	unsigned long long time_begin;
 
+	if(!oq)
+	{
+		return -1;
+	}
+	
 	do
 	{
 		time_begin = rdtsc_ordered();
@@ -696,5 +712,22 @@ int process_slice_deamon_order_que(orderq_h_t *oq,int thread)
 		}
 	}while(1);
 	return 0;
+}
+
+void show_order_que_info(void)
+{
+	int i = 0;
+	for(i = 0 ; i< pone_thread_num ; i++)
+	{
+		orderq_h_t *qh = slice_order_que[i];
+		if(qh)
+		{
+			printk("\r\n-------------------\r\n");
+			printk("que id %d\r\n",i);
+			printk("que w idx %lld\r\n",qh->w_idx);
+			printk("que r idx %lld\r\n",qh->r_idx);
+			printk("que w count %lld\r\n",qh->count);
+		}
+	}
 }
 #endif

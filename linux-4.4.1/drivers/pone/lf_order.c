@@ -195,7 +195,7 @@ u64 *_get_l0_pg(orderq_h_t *oq, u64 *ltopd, int level, int thread, u64 oid)
         }
         lxud = lxd;
     }
-    oq->local_path[thread].entry[0] = (u64 *)*lxd;
+    oq->local_path[thread].entry[0] = (u64 *)PAGE_PTR(*lxd);
     return (u64 *)*lxd;
 }
 
@@ -273,7 +273,7 @@ void deal_finished_pgs(orderq_h_t *oq, int thread)
             atomic_sub(1, (atomic_t *)&oq->pg_num);
             if(i == oq->local_path[thread].level)
                 return;
-            atomic64_add(1, (atomic64_t *)oq->local_path[thread].entry[i+1]);
+            //atomic64_add(1, (atomic64_t *)oq->local_path[thread].entry[i+1]);
         }
         else
         {

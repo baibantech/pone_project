@@ -30,7 +30,9 @@ PONE_TIMEPOINT_DEFINE(slice_changeref_end);
 PONE_TIMEPOINT_DEFINE(slice_page_recycle);
 PONE_TIMEPOINT_DEFINE(lf_order_que_write);
 PONE_TIMEPOINT_DEFINE(lf_order_que_read);
-
+PONE_TIMEPOINT_DEFINE(dvd_data_delete);
+PONE_TIMEPOINT_DEFINE(dvd_data_insert);
+PONE_TIMEPOINT_DEFINE(dvd_vb_del_ins);
 
 pone_time_point* pone_time_array[] =
 {
@@ -55,6 +57,9 @@ pone_time_point* pone_time_array[] =
 #endif
 	PONE_TIMEPOINT_PTR(lf_order_que_write),
 	PONE_TIMEPOINT_PTR(lf_order_que_read),
+	PONE_TIMEPOINT_PTR(dvd_data_delete),
+	PONE_TIMEPOINT_PTR(dvd_data_insert),
+	PONE_TIMEPOINT_PTR(dvd_vb_del_ins),
 	
 };
 
