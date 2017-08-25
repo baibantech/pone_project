@@ -1497,11 +1497,160 @@ void refresh_db_hang_vec(cluster_head_t *pclst, spt_vec *pdata_vec, spt_dh *pdel
     pdown_ext_h->hang_vec = pext_h->hang_vec;
     return;
 }
+
+int find_lowest_data_slow(cluster_head_t *pclst, spt_vec* pvec)
+{
+    spt_vec *pcur, *pnext, *ppre;
+    spt_vec tmp_vec, cur_vec, next_vec;
+    //u8 direction;
+    u32 vecid;
+    int ret;
+
+find_lowest_start:
+    ppre = 0;
+    cur_vec.val = pvec->val;
+    pcur = pvec;
+    if(cur_vec.status == SPT_VEC_RAW)
+    {
+        smp_mb();
+        cur_vec.val = pvec->val;
+        if(cur_vec.status == SPT_VEC_RAW)
+        {
+            return SPT_DO_AGAIN;
+        }
+    }
+    if(cur_vec.status == SPT_VEC_INVALID)
+    {
+        return SPT_DO_AGAIN;
+    }
+
+    while(1)
+    {
+        if(cur_vec.type == SPT_VEC_DATA && cur_vec.down == SPT_NULL)
+        {
+            return cur_vec.rd;
+        }
+        else
+        {
+            if(cur_vec.down != SPT_NULL)
+            {
+                pnext = (spt_vec *)vec_id_2_ptr(pclst,cur_vec.down);
+                next_vec.val = pnext->val;
+                if(next_vec.status == SPT_VEC_RAW)
+                {
+                    smp_mb();
+                    next_vec.val = pnext->val;
+                    if(next_vec.status == SPT_VEC_RAW)
+                    {
+                        goto find_lowest_start;
+                    }
+                }
+                if(next_vec.status == SPT_VEC_INVALID)
+                {
+                    tmp_vec.val = cur_vec.val;
+                    vecid = cur_vec.down;
+                    if(next_vec.type == SPT_VEC_SIGNPOST)
+                    {
+                        tmp_vec.down = next_vec.rd;
+                    }
+                    else
+                    {
+                        tmp_vec.down = next_vec.down;
+                        if(next_vec.type != SPT_VEC_DATA
+                            || (next_vec.type == SPT_VEC_DATA
+                                 && next_vec.rd != SPT_NULL))
+                        {
+                            spt_vec tmp_vec_b;
+                            tmp_vec_b.val = next_vec.val;
+                            tmp_vec_b.status = SPT_VEC_VALID;
+                            atomic64_cmpxchg((atomic64_t *)pnext, next_vec.val, tmp_vec_b.val);
+                            //set invalid succ or not, refind from cur
+                            cur_vec.val = pcur->val;
+                            if((cur_vec.status == SPT_VEC_INVALID))
+                            {
+                                goto find_lowest_start;
+                            }
+                            continue;
+                        }
+                            //BUG();
+                    }
+                    //cur_vec.val = atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val);
+                    if(cur_vec.val == atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val))//delete succ
+                    {
+                        vec_free_to_buf(pclst, vecid, g_thrd_id);
+                    }
+                
+                    cur_vec.val = pcur->val;
+                    if(cur_vec.status != SPT_VEC_VALID)
+                    {
+                        goto find_lowest_start;
+                    }
+                    continue;
+                }
+            }
+            else//must cur_vec.type == SPT_VEC_RIGHT
+            {
+                pnext = (spt_vec *)vec_id_2_ptr(pclst,cur_vec.rd);
+                next_vec.val = pnext->val;
+                if(next_vec.status == SPT_VEC_RAW)
+                {
+                    smp_mb();
+                    next_vec.val = pnext->val;
+                    if(next_vec.status == SPT_VEC_RAW)
+                    {
+                        goto find_lowest_start;
+                    }
+                }           
+                if(next_vec.status == SPT_VEC_INVALID)
+                {
+                    tmp_vec.val = cur_vec.val;
+                    vecid = cur_vec.rd;
+                    tmp_vec.rd = next_vec.rd;
+                    if(next_vec.type == SPT_VEC_DATA)
+                    {
+                        if(next_vec.down == SPT_NULL)
+                        {
+                            spt_set_data_flag(tmp_vec);
+                            if(next_vec.rd == SPT_NULL && pcur!=pclst->pstart)
+                                tmp_vec.status = SPT_VEC_INVALID;
+                        }
+                        else
+                        {
+                            tmp_vec.rd = next_vec.down;
+                        }                
+                    }
+                    else
+                    {
+                        ;
+                    }
+                    //cur_vec.val = atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val);
+                    //if(cur_vec.val == tmp_vec.val)//delete succ
+                    if(cur_vec.val == atomic64_cmpxchg((atomic64_t *)pcur, cur_vec.val, tmp_vec.val))
+                    {
+                       vec_free_to_buf(pclst, vecid, g_thrd_id);
+                    }
+                    cur_vec.val = pcur->val;
+                    if(cur_vec.status != SPT_VEC_VALID)
+                    {
+                        goto find_lowest_start;
+                    }
+                    continue;
+                }
+
+            }
+        }
+        ppre = pcur;
+        pcur = pnext;
+        cur_vec.val = next_vec.val;        
+    }
+}
+
+
 /*返回一个db_id，有可能已经被删了也没有关系*/
 int find_lowest_data(cluster_head_t *pclst, spt_vec *start_vec)
 {
     spt_vec *pcur, cur_vec;
-
+    
     pcur = start_vec;
     cur_vec.val = pcur->val;
 
@@ -1897,6 +2046,10 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         while(1)
         {
             dataid = find_lowest_data(plower_clst, plower_clst->pstart);
+            if(dataid == SPT_NULL)
+            {
+                dataid = find_lowest_data_slow(plower_clst, plower_clst->pstart);
+            }
             pdh = (spt_dh *)db_id_2_ptr(plower_clst, dataid);
 			start = rdtsc();
             while(1)
@@ -1950,6 +2103,10 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         while(1)
         {
             dataid = find_lowest_data(plower_clst, plower_clst->pstart);
+            if(dataid == SPT_NULL)
+            {
+                dataid = find_lowest_data_slow(plower_clst, plower_clst->pstart);
+            }            
             if(dataid == ins_dvb_id)
             {
                 //pdh = (spt_dh *)db_id_2_ptr(plower_clst, dataid);
