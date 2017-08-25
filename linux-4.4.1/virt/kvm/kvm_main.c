@@ -2906,7 +2906,6 @@ out_free_irq_routing:
 		#ifdef CONFIG_PONE_MODULE
 		mem_pool_reg(arg,kvm,current->mm,current);
 		#endif
-		printk("\r\nhost kernel:%p\r\n",arg);
         r = 0;
 		break;
     }

@@ -249,7 +249,6 @@ int virt_mem_release_init(void)
 				return -1;
 			}
 
-	
 			for(i = 0;i<MEM_POOL_MAX; i++)
 			{
 				mem_pool_addr[i] = NULL;
@@ -275,6 +274,7 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 	printk("args kvm  is %p\r\n",pool->args.kvm);
 	printk("alloc id is %llx\r\n",pool->alloc_idx);
 	printk("desc_max is %llx\r\n",pool->desc_max);
+#if 0
 	printk("debug r begin is %lld\r\n",pool->debug_r_begin);
 	printk("debug r end is %lld\r\n",pool->debug_r_end);
 	printk("debug a begin is %lld\r\n",pool->debug_a_begin);
@@ -285,6 +285,7 @@ void print_virt_mem_pool(struct virt_mem_pool *pool)
 	printk("mark alloc ok  is %lld\r\n",pool->mark_alloc_ok);
 	printk("mark alloc err conflict  is %lld\r\n",pool->mark_alloc_err_conflict);
 	printk("mark alloc err state  is %lld\r\n",pool->mark_alloc_err_state);
+#endif
 }
 
 int walk_virt_page_release(struct virt_mem_pool *pool);
@@ -311,6 +312,14 @@ void print_host_virt_mem_pool(void)
 			pool =  (struct virt_mem_pool*)kmap(begin_page);
 			printk("pool idx is %d\r\n",i);
 			printk("pool page addr is %p\r\n",begin_page);
+			printk("begin page state is %lld\r\n",get_slice_state_by_id(page_to_pfn(begin_page)));
+			printk("pool hva %llx\r\n",hva);
+			printk("pool mm %p\r\n",mm);
+			printk("pool task %p\r\n",task);
+			printk("pool vma %p\r\n",mem_pool_addr[i]->args.vma);
+			printk("pool kvm %p\r\n",mem_pool_addr[i]->args.kvm);
+
+
 			print_virt_mem_pool(pool);
 			//walk_virt_page_release(pool);
 			kunmap(begin_page);
@@ -374,6 +383,35 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 	pool->args.kvm = kvm;
 	pool->hva = hva;
 	spin_lock(&pool_reg_lock);
+
+	for(i = 1 ; i < MEM_POOL_MAX ;i++)
+	{
+		if(mem_pool_addr[i])
+		{
+			if(mm == mem_pool_addr[i]->args.mm)
+			{
+				PONE_DEBUG("mm same\r\n");
+			}
+			if(task == mem_pool_addr[i]->args.task)
+			{
+				PONE_DEBUG("task same\r\n");
+			}
+			if(kvm  == mem_pool_addr[i]->args.kvm)
+			{
+				PONE_DEBUG("kvm same\r\n");
+			}
+			if(vma  == mem_pool_addr[i]->args.vma)
+			{
+				PONE_DEBUG("vma same\r\n");
+			}
+			if(hva == mem_pool_addr[i]->hva)
+			{
+				PONE_DEBUG("hva same\r\n");
+			}
+		}
+	}
+
+
 	for(i = 1; i < MEM_POOL_MAX ; i++)
 	{
 		if(mem_pool_addr[i] != 0)
@@ -388,7 +426,7 @@ int mem_pool_reg(unsigned long gfn,struct kvm *kvm,struct mm_struct *mm,struct t
 		{
 			memcpy(mem_pool_addr[i],pool,sizeof(struct virt_mem_pool));
 			printk("page recycle reg pool id %d \r\n",pool->pool_id);
-			printk("pool page addr %p \r\n",begin_page);
+			//printk("pool page addr %p \r\n",begin_page);
 			//print_virt_mem_pool(mem_pool_addr[i]);
 			kunmap(begin_page);
 			put_page(begin_page);
