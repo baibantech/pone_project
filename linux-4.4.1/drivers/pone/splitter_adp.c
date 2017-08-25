@@ -35,7 +35,7 @@ EXPORT_SYMBOL(ljy_vmalloc_area);
 #define op_code_off (sizeof(int))
 #define page_mem_off (4096*3)
 int  op_index = 0;
-int spt_divide_thread_run = 0;
+int spt_divide_thread_run = 1;
 DECLARE_WAIT_QUEUE_HEAD(pone_divide_thread_run);
 int pone_thread_num = 0;
 int pone_thread_interval = 2;
