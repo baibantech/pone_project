@@ -114,7 +114,8 @@ extern unsigned long long slice_copy_pte_cnt1 ;
 extern void* page_insert;
 extern char page_in_tree[];
 extern int deamon_scan_period;
-
+extern int deamon_base_scan_period;
+extern int deamon_merge_scan;
 extern void printk_debug_map_cnt(void);
 extern int lfrwq_len(lfrwq_t *qh);
 #ifdef CONFIG_SYSFS
@@ -432,6 +433,11 @@ static ssize_t pone_deamon_scan_period_store(struct kobject *kobj, struct kobj_a
 	int err;
 	err =  kstrtoul(buf,10,&deamon_scan_period);
 	printk("deamon_scan_period is %ld\r\n",deamon_scan_period);
+	if(deamon_scan_period < deamon_base_scan_period)
+	{
+		deamon_scan_period = deamon_base_scan_period;
+	}
+	deamon_merge_scan = deamon_scan_period/deamon_base_scan_period;
 	return count;
 }
 

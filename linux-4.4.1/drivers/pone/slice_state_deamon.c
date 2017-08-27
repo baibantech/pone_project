@@ -19,7 +19,8 @@
 #include  "splitter_adp.h"
 #include "lf_order.h"
 #include "pone_time.h"
-int deamon_scan_period = 5000;
+int deamon_base_scan_period = 5000;
+int deamon_scan_period = 20000;
 int deamon_merge_scan = 4;
 unsigned long long wakeup_deamon_cnt = 0;
 extern orderq_h_t *slice_order_que[64];
@@ -402,6 +403,18 @@ static int splitter_daemon_thread(void *data)
 						continue;
 					}
 
+					if(SLICE_WATCH == slice_state)
+					{
+						if(0 != change_slice_state(i,j,SLICE_WATCH,SLICE_WATCH_QUE))
+						{
+							need_repeat++;
+							continue;
+						}
+						slice_deamon_find_watch++;
+						lfo_write(slice_deamon_order_que,48,(unsigned long)page);	
+						continue;
+					}
+
 get_cnt:
 					if(0 != (slice_vcnt = get_slice_volatile_cnt(i,j)))
 					{
@@ -433,18 +446,6 @@ get_cnt:
 						}
 					}
 
-					if(SLICE_WATCH == slice_state)
-					{
-						if(0 != change_slice_state(i,j,SLICE_WATCH,SLICE_WATCH_QUE))
-						{
-							need_repeat++;
-							continue;
-						}
-						slice_deamon_find_watch++;
-						lfo_write(slice_deamon_order_que,48,(unsigned long)page);	
-						continue;
-					}
-
 get_que:
 					que_id = pone_get_slice_que_id(page);
 					if((-1 == que_id) || (0 == que_id))
@@ -473,14 +474,14 @@ get_que:
 		
 		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
 		deamon_sleep_period_in_loop++;
-		if(cost_time >deamon_scan_period)
+		if(cost_time >deamon_base_scan_period)
 		{
-			msleep(deamon_scan_period);
+			msleep(deamon_base_scan_period);
 		
 		}
 		else
 		{	
-			msleep(deamon_scan_period - cost_time);
+			msleep(deamon_base_scan_period - cost_time);
 		}
 	}while(!kthread_should_stop());
 	return 0;
