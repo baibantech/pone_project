@@ -392,7 +392,7 @@ int pone_slice_alloc_process(void *slice)
 		}
 		if(0 != atomic_read(&page->_mapcount))
 		{
-			PONE_DEBUG("slice state is %lld ,err mapcount \r\n",cur_state);
+			PONE_DEBUG("slice state is %lld ,err mapcount %d\r\n",cur_state,atomic_read(&page->_mapcount));
 			break;
 		}
 

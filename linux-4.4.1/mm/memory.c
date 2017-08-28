@@ -2088,11 +2088,12 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		if (!new_page)
 			goto oom;
 		cow_user_page(new_page, old_page, address, vma);
-		#ifdef CONFIG_PONE_MODULE
-		op_page = new_page;
-		#endif
 	}
 
+	#ifdef CONFIG_PONE_MODULE
+	op_page = new_page;
+	#endif
+	
 	if (mem_cgroup_try_charge(new_page, mm, GFP_KERNEL, &memcg))
 		goto oom_free_new;
 
@@ -2163,15 +2164,6 @@ static int wp_page_copy(struct mm_struct *mm, struct vm_area_struct *vma,
 		/* Free the old page.. */
 		new_page = old_page;
 		page_copied = 1;
-#if 0
-#ifdef CONFIG_PONE_MODULE
-		if(op_page && page_copied)
-		{
-			PONE_RUN_2(pone_page_mark_volatile_cnt,old_page,op_page) ;
-			//pone_slice_mark_volatile_cnt(old_page,op_page);
-		}
-#endif
-#endif
 	
 	} else {
 		mem_cgroup_cancel_charge(new_page, memcg);
