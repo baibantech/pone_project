@@ -19,9 +19,9 @@
 #include  "splitter_adp.h"
 #include "lf_order.h"
 #include "pone_time.h"
-int deamon_base_scan_period = 5000;
-int deamon_scan_period = 20000;
-int deamon_merge_scan = 4;
+int pone_deamon_base_scan_period = 5000;
+int pone_deamon_scan_period = 20000;
+int pone_deamon_merge_scan = 4;
 unsigned long long wakeup_deamon_cnt = 0;
 extern orderq_h_t *slice_order_que[64];
 
@@ -367,7 +367,7 @@ static int splitter_daemon_thread(void *data)
 		volatile_oper = 0;
 		need_repeat =0;
 		scan_count++;
-		if((scan_count % deamon_merge_scan) == 0)
+		if((scan_count % pone_deamon_merge_scan) == 0)
 		{
 			volatile_oper = 1;
 		}
@@ -474,14 +474,14 @@ get_que:
 		
 		cost_time = jiffies_to_msecs(end_jiffies - start_jiffies);
 		deamon_sleep_period_in_loop++;
-		if(cost_time >deamon_base_scan_period)
+		if(cost_time >pone_deamon_base_scan_period)
 		{
-			msleep(deamon_base_scan_period);
+			msleep(pone_deamon_base_scan_period);
 		
 		}
 		else
 		{	
-			msleep(deamon_base_scan_period - cost_time);
+			msleep(pone_deamon_base_scan_period - cost_time);
 		}
 	}while(!kthread_should_stop());
 	return 0;

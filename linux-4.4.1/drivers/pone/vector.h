@@ -59,6 +59,7 @@
 #define SPT_DVD_CNT_PER_TIME (100)
 #define SPT_DVD_THRESHOLD_VA (1000000)
 #define SPT_DVD_MOVE_TIMES (SPT_DVD_THRESHOLD_VA/(2*SPT_DVD_CNT_PER_TIME))
+#define SPT_DATA_HIGH_WATER_MARK (1600000)
 
 typedef char*(*spt_cb_get_key)(char *);
 typedef void (*spt_cb_free)(char *);

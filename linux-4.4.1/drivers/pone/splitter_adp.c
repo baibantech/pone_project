@@ -248,9 +248,9 @@ static int splitter_process_thread(void *data)
 	do
 	{
 		ret = process_slice_order_que(slice_order_que[thread_idx],1);
-		d_ret = process_slice_deamon_order_que(slice_deamon_order_que,thread_idx);
 		w_ret = process_slice_watch_order_que(slice_watch_order_que[thread_idx],smp_processor_id());
-		if((ret!= -2)||(d_ret != -2)||(w_ret != -2))
+		d_ret = process_slice_deamon_order_que(slice_deamon_order_que,thread_idx);
+		if((ret == -1)&&(d_ret == -1)&&(w_ret == -1))
 		{
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule();
@@ -708,6 +708,10 @@ int process_slice_deamon_order_que(orderq_h_t *oq,int thread)
 		pone_process_deamon_que_state((void*)cmd);
 		if((cnt %10000) == 0)
 		{
+			if((lfo_get_count(slice_order_que[thread])!= 0) || (lfo_get_count(slice_watch_order_que[thread]) != 0))
+			{
+				return -2;
+			}
 			schedule();
 		}
 	}while(1);

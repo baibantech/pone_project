@@ -865,16 +865,16 @@ int do_insert_first_set(cluster_head_t *pclst, insert_info_t *pinsert, char *new
 	tmp_vec.val = pinsert->key_val;
 //    tmp_vec.val = cur_vec.val;
     tmp_vec.rd = dataid;
+    if(!pclst->is_bottom)
+    {
+        pdh_ext = (spt_dh_ext *)pdh->pdata;
+        pdh_ext->hang_vec = SPT_NULL;
+    }
     smp_mb();
     if(pinsert->key_val == atomic64_cmpxchg((atomic64_t *)pinsert->pkey_vec, 
                         pinsert->key_val, tmp_vec.val))
     {
-        if(!pclst->is_bottom)
-        {
-            pdh_ext = (spt_dh_ext *)pdh->pdata;
-            pdh_ext->hang_vec = SPT_NULL;
-        }
-        return dataid;
+         return dataid;
     }
     else
     {
@@ -1042,17 +1042,20 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         }
         pvec_a->down = tmp_rd;
     }   
+    if(!pclst->is_bottom)
+    {
+        pdh_ext = (spt_dh_ext *)pdh->pdata;
+        plast_dh = (spt_dh *)db_id_2_ptr(pclst, pinsert->dataid);
+        plast_dh_ext = (spt_dh_ext *)plast_dh->pdata;
+        pdh_ext->hang_vec = plast_dh_ext->hang_vec;
+     }
     smp_mb();
     if(pinsert->key_val == atomic64_cmpxchg((atomic64_t *)pinsert->pkey_vec, 
                         pinsert->key_val, tmp_vec.val))
     {
         if(!pclst->is_bottom)
         {
-            pdh_ext = (spt_dh_ext *)pdh->pdata;
-            plast_dh = (spt_dh *)db_id_2_ptr(pclst, pinsert->dataid);
-            plast_dh_ext = (spt_dh_ext *)plast_dh->pdata;
-            pdh_ext->hang_vec = plast_dh_ext->hang_vec;
-            plast_dh_ext->hang_vec = vecid_a;
+             plast_dh_ext->hang_vec = vecid_a;
         }
         return dataid;
     }
@@ -1227,15 +1230,15 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
             while(1);
         }
     }
+    if(!pclst->is_bottom)
+    {
+        pdh_ext = (spt_dh_ext *)pdh->pdata;
+        pdh_ext->hang_vec = vecid_a;
+    }
     smp_mb();
     if(pinsert->key_val == atomic64_cmpxchg((atomic64_t *)pinsert->pkey_vec, 
                         pinsert->key_val, tmp_vec.val))
     {
-        if(!pclst->is_bottom)
-        {
-            pdh_ext = (spt_dh_ext *)pdh->pdata;
-            pdh_ext->hang_vec = vecid_a;
-        }
         return dataid;
     }
     else
@@ -1323,15 +1326,15 @@ int do_insert_last_down(cluster_head_t *pclst, insert_info_t *pinsert, char *new
     {
         tmp_vec.down = vecid_a;
     }        
+    if(!pclst->is_bottom)
+    {
+        pdh_ext = (spt_dh_ext *)pdh->pdata;
+        pdh_ext->hang_vec = pinsert->key_id;
+    }
     smp_mb();
     if(pinsert->key_val == atomic64_cmpxchg((atomic64_t *)pinsert->pkey_vec, 
                         pinsert->key_val, tmp_vec.val))
     {
-        if(!pclst->is_bottom)
-        {
-            pdh_ext = (spt_dh_ext *)pdh->pdata;
-            pdh_ext->hang_vec = pinsert->key_id;
-        }
         return dataid;
     }
     else
@@ -1434,14 +1437,17 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
             tmp_vec.down = vecid_a;
         }
     }
+    if(!pclst->is_bottom)
+    {
+        pdh_ext = (spt_dh_ext *)pdh->pdata;
+        pdh_ext->hang_vec = pinsert->key_id;
+    }
     smp_mb();
     if(pinsert->key_val == atomic64_cmpxchg((atomic64_t *)pinsert->pkey_vec, 
                         pinsert->key_val, tmp_vec.val))
     {
         if(!pclst->is_bottom)
         {
-            pdh_ext = (spt_dh_ext *)pdh->pdata;
-            pdh_ext->hang_vec = pinsert->key_id;
             pvec_down = (spt_vec *)vec_id_2_ptr(pclst,pvec_a->down);
             down_dataid = get_data_id(pclst, pvec_down);//单线程操作必定成功。
             if(down_dataid < 0)
@@ -2040,7 +2046,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         ins_dvb_id = qinfo.db_id;
         //if(qinfo.data == NULL)
         {
-            pdinfo->down_vb_arr[loop] = 0;
+           // pdinfo->down_vb_arr[loop] = 0;
         }
         total = 0;
         while(1)
@@ -2143,7 +2149,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
             {
                 while(1)
                 {
-                    ret = do_delete_data(pdst_clst, pdh->pdata, 
+                    ret = do_delete_data(pdst_clst, pdinfo->down_vb_arr[loop], 
                                pdst_clst->get_key_in_tree,
                                pdst_clst->get_key_in_tree_end);
                     if(ret == SPT_OK)
@@ -2162,6 +2168,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
                         spt_debug("divide delete error\r\n");
                     }
                 }
+                pdinfo->down_vb_arr[loop] = 0;
                 break;
             }
         }
@@ -4362,6 +4369,12 @@ refind_next:
         }
         else
         {
+            if(pdext_h->hang_vec >= SPT_INVALID)
+            {
+                spt_debug("@@@@@@@@@@@@@@@@@@\r\n");
+                spt_debug("hang_vec id too big :%d\r\n", pdext_h->hang_vec);
+                spt_debug("@@@@@@@@@@@@@@@@@@\r\n");
+            }
             phang_vec = (spt_vec *)vec_id_2_ptr(pclst, pdext_h->hang_vec);
             vec.val = phang_vec->val;
             if(vec.type == SPT_VEC_DATA)
@@ -4405,7 +4418,11 @@ char *insert_data(cluster_head_t *pclst, char *pdata)
         spt_set_errno(SPT_MASKED);
         return 0;
     }
-
+    if(pnext_clst->data_total >= SPT_DATA_HIGH_WATER_MARK)
+    {
+        spt_set_errno(SPT_MASKED);
+        return 0;
+    }
     qinfo.op = SPT_OP_INSERT;
     qinfo.signpost = 0;
     qinfo.pstart_vec = pnext_clst->pstart;
