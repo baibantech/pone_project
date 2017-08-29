@@ -323,6 +323,8 @@ config KSM
 	  until a program has madvised that an area is MADV_MERGEABLE, and
 	  root has set /sys/kernel/mm/ksm/run to 1 (if CONFIG_SYSFS is set).
 
+source "mm/pone/Kconfig"
+
 config DEFAULT_MMAP_MIN_ADDR
         int "Low address space to protect from user allocation"
 	depends on MMU
@@ -668,3 +670,4 @@ config ZONE_DEVICE
 
 config FRAME_VECTOR
 	bool
+

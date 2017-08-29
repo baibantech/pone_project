@@ -1,0 +1,6 @@
+menu "page dynamic support"
+config PONE_MODULE
+        bool "page one merge(host)"
+config PPR_MODULE
+		bool "free page reclaim(guest)"
+endmenu
