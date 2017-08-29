@@ -228,23 +228,6 @@ int change_slice_state(unsigned int nid, unsigned long long slice_id,unsigned lo
 	return 0;    
 }
 
-int slice_que_resource_init(void)
-{
-    slice_que = lfrwq_init(8192*32,2048,50);
-    if(!slice_que)
-    {
-        return -1;
-    }
-    slice_watch_que = lfrwq_init(8192*32,2048,50);
-    if(!slice_watch_que)
-    {
-        vfree(slice_que);
-        return -1;
-    }
-	slice_que_reader_init();
-    return 0;
-}
-
 int pone_slice_add_mapcount_process(void  *slice)
 {
 	unsigned int nid;
@@ -925,113 +908,6 @@ int process_slice_file_check(unsigned long i_ino)
 	return 0;
 }
 
-int process_state_que(lfrwq_t *qh,lfrwq_reader *reader,int op)
-{
-	void *msg = NULL;
-	int process_cnt = 0;
-	unsigned long long r_idx = 0;
-	int ret = -1;
-	unsigned long long time_begin =0;
-	if((!qh) || (!reader))
-	{
-		return -1;
-	}    
-
-	do
-	{
-		if(reader->local_idx != -1)
-		{
-			msg = NULL;
-			handle_msg_idx:
-			if(reader->local_idx > lfrwq_get_r_max_idx(qh))
-			{
-				ret= -1;
-				break;
-			}
-			
-			r_idx = lfrwq_deq_by_idx(qh,reader->local_idx,&msg);
-			if(!msg)
-			{
-				ret = -1;
-				break;
-			}
-			reader->local_idx = -1;
-			goto handle_msg;                
-		}
-		
-		if(!reader->local_pmt)
-		{
-			reader->local_pmt = lfrwq_get_rpermit(qh);
-		}
-
-		if(!reader->local_pmt)
-		{
-			ret = -1;
-			break;
-		} 
-
-		while(reader->local_pmt)
-		{
-            msg = NULL;
-			r_idx = lfrwq_alloc_r_idx(qh);
-            if(r_idx > lfrwq_get_r_max_idx(qh))
-            {
-                reader->local_idx = r_idx;
-                goto handle_msg_idx;        
-            }
-
-            r_idx = lfrwq_deq_by_idx(qh,r_idx,&msg);
-
-            if(!msg)
-            {
-                reader->local_idx = r_idx;
-                goto handle_msg_idx;
-            }
-            else
-            {
-                handle_msg:               
-                reader->local_pmt--;
-				pone_process_que_state(msg);
-				
-                if(0 == reader->r_cnt)
-                {
-                    reader->local_blk = lfrwq_get_blk_idx(qh,r_idx);
-                }  
-                else
-                {
-                    if(lfrwq_get_blk_idx(qh,r_idx) != reader->local_blk)
-                    {
-                        lfrwq_add_rcnt(qh,reader->r_cnt,reader->local_blk);
-                        reader->r_cnt = 0 ;
-                        reader->local_blk = lfrwq_get_blk_idx(qh,r_idx);    
-                    }
-                }
-                reader->r_cnt++;
-#if 1	
-				if(process_cnt++ >10000)
-				{
-					ret = -2;
-					break;
-				}
-#endif
-			}
-        }
-        
-        if(reader->r_cnt)
-        {
-            lfrwq_add_rcnt(qh,reader->r_cnt,reader->local_blk);
-            reader->r_cnt = 0 ;
-        }
-		if(process_cnt++ >2000)
-		{
-			ret = -2;
-			break;
-		}
-
-    }while(1);
-    
-    return ret;
-}
 
 unsigned int slice_debug_area_cnt = 0;
 struct page **debug_page_ptr = NULL;

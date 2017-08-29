@@ -82,3 +82,4 @@ obj-$(CONFIG_USERFAULTFD) += userfaultfd.o
 obj-$(CONFIG_IDLE_PAGE_TRACKING) += page_idle.o
 obj-$(CONFIG_FRAME_VECTOR) += frame_vector.o
 obj-$(CONFIG_PONE_MODULE) += pone/
+obj-$(CONFIG_PPR_MODULE) += pone/

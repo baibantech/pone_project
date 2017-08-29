@@ -71,9 +71,10 @@
 #include <pone/pone_linux_adp.h>
 #include <pone/slice_state.h>
 #include <pone/slice_state_adpter.h>
+#endif
+#ifdef CONFIG_PPR_MODULE
 #include <pone/virt_release.h>
 #endif
-
 #include "internal.h"
 
 /* prevent >1 _updater_ of zone percpu pageset ->high and ->batch fields */
@@ -1007,7 +1008,7 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
 	arch_free_page(page, order);
 	kernel_map_pages(page, 1 << order, 0);
 
-#ifdef CONFIG_PONE_MODULE
+#ifdef CONFIG_PPR_MODULE
 
 	for (i = 0; i < (1 << order); i++) {
 		 virt_mark_page_release(page+i);
@@ -1395,7 +1396,7 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 {
 	int i;
 
-#ifdef CONFIG_PONE_MODULE
+#ifdef CONFIG_PPR_MODULE
 	int ret = -1;
 	int need_clear = 0;
 #endif
@@ -1406,7 +1407,7 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 			return 1;
 	}
 
-#ifdef CONFIG_PONE_MODULE
+#ifdef CONFIG_PPR_MODULE
 	for(i = 0;  i<(1 << order); i++)
 	{
 		ret =  virt_mark_page_alloc(page + i);
@@ -1424,7 +1425,7 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags,
 	kernel_map_pages(page, 1 << order, 1);
 	kasan_alloc_pages(page, order);
 
-#ifdef CONFIG_PONE_MODULE
+#ifdef CONFIG_PPR_MODULE
 	if(guest_page_no_need_clear)
 	{
 		if(need_clear)	

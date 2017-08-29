@@ -99,7 +99,6 @@ extern struct task_struct *spt_deamon_thread;
 extern int debug_statistic(cluster_head_t *head);
 extern void debug_cluster_travl(cluster_head_t *head);
 
-extern struct pone_hash_head *pone_hash_table;
 extern unsigned long long page_free_cnt;
 extern unsigned long long data_map_key_cnt;
 extern unsigned long long data_unmap_key_cnt;
@@ -154,33 +153,6 @@ void show_page_err_info(void)
 }
 
 extern int pone_case_init(void);
-int pone_hash_table_show(char *buf)
-{
-	int i = 0;
-	int len = 0;
-	int user_count_sum = 0;
-	struct pone_desc *pos = NULL;
-	for(i = 0 ; i < 0x10000 ; i++)
-	{
-		if(hlist_empty(&pone_hash_table[i].head))
-		{
-			continue;
-		}
-		else
-		{
-			len += sprintf(buf,"-----------crc %x info-----------\r\n",i);
-			hlist_for_each_entry(pos,&pone_hash_table[i].head,hlist);
-			{
-				len += sprintf(buf,"slice idx %ld.user_count %d\r\n",pos->slice_idx,pos->user_count);
-				user_count_sum += pos->user_count;
-			}
-		}
-
-	}
-	len += sprintf(buf,"total user count is %d\r\n",user_count_sum);
-	return len;
-}
-
 
 int lfrwq_info_get(lfrwq_t *qh, char *buf)
 {
