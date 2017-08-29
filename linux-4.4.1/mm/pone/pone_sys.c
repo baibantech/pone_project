@@ -370,7 +370,7 @@ extern int slice_debug_area_show(void);
 extern void print_host_virt_mem_pool(void);
 extern void show_slice_volatile_cnt(void);
 extern void show_pone_time_stat(void);
-extern void spt_threadinfo_show(void);
+//extern void spt_threadinfo_show(void);
 extern unsigned long long deamon_sleep_period_in_que_fail;
 extern unsigned long long deamon_sleep_period_in_loop;
 static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
@@ -391,7 +391,7 @@ static ssize_t pone_sd_tree_show(struct kobject *kobj, struct kobj_attribute *at
 	//add_slice_volatile_cnt_test(0,1000);
 	show_slice_volatile_cnt();
 	show_pone_time_stat();
-	spt_threadinfo_show();
+	//spt_threadinfo_show();
     debug_lower_cluster_info_show();
 	show_pone_que_stat();
 	return sprintf(buf,"check dmesg buffer11111");

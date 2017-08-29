@@ -32,12 +32,6 @@
 
 //#define CLST_TIND_PGS        (CLST_DIND_PGS+1)
 
-#define spt_debug(f, a...)	{ \
-					printk ("LFORD DEBUG (%s, %d): %s:", \
-						__FILE__, __LINE__, __func__); \
-				  	printk (f, ## a); \
-					}
-
 #if 0 //for test
 static inline char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id)
 {

@@ -18,6 +18,7 @@
 
 #include "vector.h"
 #include "chunk.h"
+#include "spt_dep.h"
 
 void vec_buf_free(cluster_head_t *pclst, int thread_id);
 void db_buf_free(cluster_head_t *pclst, int thread_id);
@@ -85,7 +86,7 @@ char* blk_id_2_ptr(cluster_head_t *pclst, unsigned int id)
     }
     else
     {
-        printk("warning: %s: id is too big\r\n", __func__);
+        spt_debug("warning: id is too big\r\n");
         while(1);
         return 0;
     }
@@ -129,13 +130,9 @@ void set_data_size(int size)
 {
     g_data_size = size;
 }
-char *alloc_data(void)
-{
-    return kmalloc(DATA_SIZE,GFP_ATOMIC);
-}
 void free_data(char *p)
 {
-    kfree(p);
+    spt_free(p);
 }
 void default_end_get_key(char *p)
 {
@@ -147,17 +144,6 @@ char *upper_get_key(char *pdata)
 
     ext_head = (spt_dh_ext *)pdata;
     return ext_head->data;
-}
-char* cluster_alloc_page(void)
-{
-    void *p;
-    p = kmalloc(4096,GFP_ATOMIC);
-    if(p != 0)
-    {
-        memset(p, 0, 4096);
-        smp_mb();
-    }
-    return p;
 }
 
 int cluster_add_page(cluster_head_t *pclst)
@@ -180,7 +166,7 @@ int cluster_add_page(cluster_head_t *pclst)
         return CLT_FULL;
     }
 
-    page = cluster_alloc_page();
+    page = spt_alloc_zero_page();
     if(page == NULL)
         return CLT_NOMEM;
   
@@ -198,10 +184,10 @@ int cluster_add_page(cluster_head_t *pclst)
         offset = id;
         if(offset == 0)
         {
-            indir_page = (char **)cluster_alloc_page();
+            indir_page = (char **)spt_alloc_zero_page();
             if(indir_page == NULL)
             {
-                //printk("\r\nOUT OF MEMERY    %d\t%s", __LINE__, __FUNCTION__);
+                //printf("\r\nOUT OF MEMERY    %d\t%s", __LINE__, __FUNCTION__);
                 atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_pgs);
                 return CLT_NOMEM;
             }
@@ -224,10 +210,10 @@ int cluster_add_page(cluster_head_t *pclst)
         offset2 = id & (ptrs-1);
         if(id == 0)
         {
-            dindir_page = (char ***)cluster_alloc_page();
+            dindir_page = (char ***)spt_alloc_zero_page();
             if(dindir_page == NULL)
             {
-                //printk("\r\nOUT OF MEMERY    %d\t%s", __LINE__, __FUNCTION__);
+                //printf("\r\nOUT OF MEMERY    %d\t%s", __LINE__, __FUNCTION__);
                 atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_pgs);
                 return CLT_NOMEM;
             }
@@ -245,10 +231,10 @@ int cluster_add_page(cluster_head_t *pclst)
         
         if(offset2 == 0)
         {
-            indir_page = (char **)cluster_alloc_page();
+            indir_page = (char **)spt_alloc_zero_page();
             if(indir_page == NULL)
             {
-                //printk("\r\nOUT OF MEMERY    %d\t%s", __LINE__, __FUNCTION__);
+                //printf("\r\nOUT OF MEMERY    %d\t%s", __LINE__, __FUNCTION__);
                 atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_pgs);
                 return CLT_NOMEM;
             }
@@ -271,7 +257,7 @@ int cluster_add_page(cluster_head_t *pclst)
     }
     else
     {
-        printk("warning: %s: id is too big", __func__);
+        spt_debug("warning: id is too big");
         return CLT_ERR;
     }
     
@@ -300,7 +286,7 @@ int cluster_add_page(cluster_head_t *pclst)
 
 void cluster_destroy(cluster_head_t *pclst)
 {
-    printk("%d\t%s\r\n", __LINE__, __FUNCTION__);
+    spt_debug("\r\n");
 }
 
 cluster_head_t * cluster_init(int is_bottom, 
@@ -317,7 +303,7 @@ cluster_head_t * cluster_init(int is_bottom,
     u32 vec;
     spt_vec *pvec;
 
-    phead = (cluster_head_t *)cluster_alloc_page();
+    phead = (cluster_head_t *)spt_alloc_zero_page();
     if(phead == NULL)
         return 0;
 
@@ -367,7 +353,7 @@ cluster_head_t * cluster_init(int is_bottom,
         phead->get_key_in_tree_end = default_end_get_key;
     }
 
-    phead->thrd_data = (spt_thrd_data *)kmalloc(sizeof(spt_thrd_data)*thread_num,GFP_ATOMIC);
+    phead->thrd_data = (spt_thrd_data *)spt_malloc(sizeof(spt_thrd_data)*thread_num);
     if(phead->thrd_data == NULL)
     {
         cluster_destroy(phead);
@@ -535,7 +521,7 @@ unsigned int db_alloc(cluster_head_t *pclst, spt_dh **db)
     atomic_sub(1, (atomic_t *)&pclst->free_dblk_cnt);
     atomic_add(1, (atomic_t *)&pclst->used_dblk_cnt);
     *db = (spt_dh *)pdb;
-	(*db)->rsv = 0;
+    (*db)->rsv = 0;
     (*db)->pdata = NULL;
     return db_id;
 }
@@ -638,18 +624,15 @@ unsigned int db_alloc_from_buf(cluster_head_t *pclst, int thread_id, spt_dh **db
     }
     ret_id = pnode->id;
     *db = (spt_dh *)db_id_2_ptr(pclst,ret_id);
-    
-	if((*db)->pdata != NULL)
-	{
-		if(spt_data_free_flag(*db))
-		{
-			pclst->freedata((*db)->pdata);
-		}
-	}
-
-	(*db)->rsv = 0;	
-	
-	pnode->id = SPT_NULL;
+    if((*db)->pdata != NULL)
+    {
+        if(spt_data_free_flag(*db))
+        {
+            pclst->freedata((*db)->pdata);
+        }
+    }
+    (*db)->rsv = 0;
+    pnode->id = SPT_NULL;
     if(pthrd_data->data_alloc_out == pthrd_data->data_free_in)
     {
         pthrd_data->data_alloc_out = pthrd_data->data_free_in = SPT_NULL;
@@ -1097,11 +1080,6 @@ unsigned int data_alloc_combo(cluster_head_t *pclst, int thread_id, spt_dh **db)
     return ret;
 }
 
-void test_p(void)
-{
-    printk("haha\r\n");
-}
-
 int test_add_page(cluster_head_t *pclst)
 {
     char *page, **indir_page, ***dindir_page;
@@ -1118,7 +1096,7 @@ int test_add_page(cluster_head_t *pclst)
         return CLT_FULL;
     }
 
-    page = cluster_alloc_page();
+    page = spt_alloc_zero_page();
     if(page == NULL)
         return CLT_NOMEM;
 
@@ -1128,10 +1106,10 @@ int test_add_page(cluster_head_t *pclst)
         size = (sizeof(char *)*pclst->pg_num_total + sizeof(cluster_head_t));
         if(size*2 >= PG_SIZE)
         {
-            new_head = (cluster_head_t *)cluster_alloc_page();
+            new_head = (cluster_head_t *)spt_alloc_zero_page();
             if(new_head == NULL)
             {
-                kfree(page);
+                spt_free_page(page);
                 return CLT_NOMEM;
             }
             memcpy((char *)new_head, (char *)pclst, size);
@@ -1139,16 +1117,16 @@ int test_add_page(cluster_head_t *pclst)
         }
         else
         {
-            new_head = kmalloc(size*2,GFP_ATOMIC);
+            new_head = spt_malloc(size*2);
             if(new_head == NULL)
             {
-                kfree(page);
+                spt_free_page(page);
                 return CLT_NOMEM;
             }    
             memcpy(new_head, pclst, size);
             new_head->pg_num_total = (size*2-sizeof(cluster_head_t))/sizeof(char *);
         }
-        kfree(pclst);
+        spt_free(pclst);
 //        new_head->pglist[0] = new_head;
         pclst = new_head;
 
@@ -1176,7 +1154,7 @@ int test_add_page(cluster_head_t *pclst)
     }
     else
     {
-        printk("warning: %s: id is too big", __func__);
+        spt_debug("warning: id is too big", __func__);
         return 0;
     }
     pclst->pg_cursor++;
@@ -1191,7 +1169,7 @@ int test_add_N_page(cluster_head_t *pclst, int n)
     {
         if(SPT_OK != cluster_add_page(pclst))
         {
-            printk("\r\n%d\t%s\ti:%d", __LINE__, __FUNCTION__, i);
+            spt_debug("%d\r\n", __LINE__, __FUNCTION__, i);
             return -1;
         }        
     }
@@ -1208,21 +1186,21 @@ void test_vec_alloc_n_times(cluster_head_t *pclst)
         vec_a = vec_alloc(pclst, &pvec_a);
         if(pvec_a == 0)
         {
-            //printk("\r\n%d\t%s\ti:%d", __LINE__, __FUNCTION__, i);
+            //printf("\r\n%d\t%s\ti:%d", __LINE__, __FUNCTION__, i);
             break;
         }
         pid_2_ptr = (spt_vec *)vec_id_2_ptr(pclst, vec_a);
         if(pid_2_ptr != pvec_a)
         {
-            printk("vec_a:%d pvec_a:%p pid_2_ptr:%p\r\n", vec_a,pvec_a,pid_2_ptr);
+            spt_debug("vec_a:%d pvec_a:%p pid_2_ptr:%p\r\n", vec_a,pvec_a,pid_2_ptr);
         }
     }
-    printk("total:%d\r\n", i);
+    spt_debug("total:%d\r\n", i);
     for(;i>0;i--)
     {
         vec_free(pclst, i-1);
     }
-    printk(" ==============done!\r\n");
+    spt_debug(" ==============done!\r\n");
     return;
 }
 

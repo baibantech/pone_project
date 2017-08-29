@@ -330,14 +330,14 @@ int pone_case_init(void)
                               tree_construct_data_from_key);
     if(pgclst == NULL)
     {
-        spt_debug("cluster_init err\r\n");
+        printk("cluster_init err\r\n");
         return 1;
     }
 
     g_thrd_h = spt_thread_init(thread_num);
     if(g_thrd_h == NULL)
     {
-        spt_debug("spt_thread_init err\r\n");
+        printk("spt_thread_init err\r\n");
         return 1;
 	}
 	

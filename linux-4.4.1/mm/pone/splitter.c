@@ -33,13 +33,15 @@
 #include <linux/highmem.h>
 #include "vector.h"
 #include "chunk.h"
+#include "spt_dep.h"
 #include "pone_time.h"
+#include "spt_thread.h"
+
 extern void slice_data_cmp(void *page,unsigned int lineno);
 //DEFINE_PER_CPU(u32 ,local_thrd_id);
 //DEFINE_PER_CPU(int, local_thrd_errno);
 unsigned int sd_thrd_errno[128] = {0};
 cluster_head_t *pgclst;
-spt_thrd_t *g_thrd_h;
 cluster_head_t *ptopclst;
 cluster_head_t *plow_clst;
 spt_dbg_info g_dbg_info = {0};
@@ -157,11 +159,11 @@ void spt_bit_cpy(u8 *to, const u8 *from, u64 start, u64 len)
 
 void spt_stack_init(spt_stack *p_stack, int size)
 {
-    p_stack->p_bottom = (void **)kmalloc(size * sizeof(void *),GFP_ATOMIC);
+    p_stack->p_bottom = (void **)spt_malloc(size * sizeof(void *));
    
     if (p_stack->p_bottom == NULL)
     {
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         return;
     }
     p_stack->p_top = p_stack->p_bottom;
@@ -187,12 +189,12 @@ void spt_stack_push(spt_stack *p_stack, void *value)
     if (spt_stack_full(p_stack))
     {      
         p_stack->p_bottom = 
-        (void **)krealloc(p_stack->p_bottom, 2*p_stack->stack_size*sizeof(void *),GFP_ATOMIC);
+        (void **)spt_realloc(p_stack->p_bottom, 2*p_stack->stack_size*sizeof(void *));
         
         if (!p_stack->p_bottom)
         {
-            kfree(p_tmp);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_free(p_tmp);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             return;
         }
         p_stack->stack_size = 2*p_stack->stack_size;
@@ -218,8 +220,8 @@ void* spt_stack_pop(spt_stack *p_stack)
 
 void spt_stack_destroy(spt_stack *p_stack)
 {
-    kfree(p_stack->p_bottom);
-//    kfree(p_stack);
+    spt_free(p_stack->p_bottom);
+//    spt_free(p_stack);
     p_stack->stack_size = 0;
     p_stack->p_bottom = NULL;
     p_stack->p_top = NULL;
@@ -227,13 +229,6 @@ void spt_stack_destroy(spt_stack *p_stack)
    
     return;
 }
-
-
-u64 ullfind_firt_zero(u64 dword)
-{
-    return 0;
-}
-
 u64 ullfind_firt_set(u64 dword)
 {
     int i;
@@ -245,10 +240,6 @@ u64 ullfind_firt_set(u64 dword)
 
     return 64;
 
-}
-u32 ulfind_firt_zero(u32 word)
-{
-    return 0;
 }
 u64 uifind_firt_set(u32 word)
 {
@@ -262,10 +253,6 @@ u64 uifind_firt_set(u32 word)
     return 32;
 
 }
-u16 usfind_firt_zero(u16 word)
-{
-    return 0;
-}
 u64 usfind_firt_set(u16 word)
 {
     int i;
@@ -277,10 +264,6 @@ u64 usfind_firt_set(u16 word)
 
     return 16;
 
-}
-u8 ucfind_firt_zero(u8 byte)
-{
-    return 0;
 }
 u64 ucfind_firt_set(u8 byte)
 {
@@ -303,7 +286,7 @@ char *spt_upper_construct_data(char *pkey)
     spt_dh_ext *pext_head;
     char *pdata;
 
-    pext_head = (spt_dh_ext *)kmalloc(sizeof(spt_dh_ext)+DATA_SIZE,GFP_ATOMIC);
+    pext_head = (spt_dh_ext *)spt_malloc(sizeof(spt_dh_ext)+DATA_SIZE);
     if(pext_head == NULL)
         return NULL;
     
@@ -318,7 +301,7 @@ char *spt_bottom_construct_data(char *pkey)
 {
     char *pdata;
 
-    pdata = (char *)kmalloc(DATA_SIZE,GFP_ATOMIC);
+    pdata = (char *)spt_malloc(DATA_SIZE);
     if(pdata == NULL)
         return NULL;
     memcpy(pdata, pkey, DATA_SIZE);
@@ -664,7 +647,6 @@ get_id_start:
     }
 
 }
-
 int do_insert_dsignpost_right(cluster_head_t *pclst, insert_info_t *pinsert, char *new_data)
 {
     spt_vec tmp_vec, *pvec_a;  
@@ -672,12 +654,11 @@ int do_insert_dsignpost_right(cluster_head_t *pclst, insert_info_t *pinsert, cha
     int ret;
     spt_dh *pdh;
 
-
     dataid = data_alloc_combo(pclst, g_thrd_id, &pdh);
     if(pdh == 0)
     {
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         return SPT_NOMEM;
     }
     pdh->ref = 1;
@@ -692,7 +673,7 @@ int do_insert_dsignpost_right(cluster_head_t *pclst, insert_info_t *pinsert, cha
         /*yzx释放资源， 申请新块，拆分*/
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         return SPT_NOMEM;
     }
     pvec_a->val = 0;
@@ -736,8 +717,7 @@ int do_insert_rsignpost_down(cluster_head_t *pclst, insert_info_t *pinsert, char
     if(pdh == 0)
     {
         /*申请新块，拆分*/
-        //BUG();
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         return SPT_NOMEM;
     }
     pdh->ref = 1;
@@ -750,7 +730,7 @@ int do_insert_rsignpost_down(cluster_head_t *pclst, insert_info_t *pinsert, char
     if(pvec_a == 0)
     {
         /*yzx释放资源， 申请新块，拆分*/
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
@@ -776,7 +756,7 @@ int do_insert_rsignpost_down(cluster_head_t *pclst, insert_info_t *pinsert, char
     {
         /*yzx释放资源， 申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
         vec_free_to_buf (pclst, vecid_a, g_thrd_id);
@@ -795,7 +775,7 @@ int do_insert_rsignpost_down(cluster_head_t *pclst, insert_info_t *pinsert, char
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -850,7 +830,7 @@ int do_insert_first_set(cluster_head_t *pclst, insert_info_t *pinsert, char *new
     {
         /*申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         return SPT_NOMEM;
     }
     pdh->ref = 1;
@@ -858,11 +838,8 @@ int do_insert_first_set(cluster_head_t *pclst, insert_info_t *pinsert, char *new
 
     pcur = (spt_vec *)vec_id_2_ptr(pclst,pclst->vec_head);
 //    cur_vec.val = pcur->val;
-    
-	if(pcur != pinsert->pkey_vec)
-		BUG();
-
-	tmp_vec.val = pinsert->key_val;
+    spt_assert(pcur == pinsert->pkey_vec);
+    tmp_vec.val = pinsert->key_val;
 //    tmp_vec.val = cur_vec.val;
     tmp_vec.rd = dataid;
     if(!pclst->is_bottom)
@@ -908,7 +885,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
     {
         /*申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         return SPT_NOMEM;
     }
     pdh->ref = 1;
@@ -923,7 +900,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
     {
         /*yzx释放资源， 申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
         return SPT_NOMEM;
@@ -940,7 +917,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -980,7 +957,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -997,8 +974,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         pvec_b->down = SPT_NULL;
         if(tmp_vec.type == SPT_VEC_SIGNPOST)
         {
-            if(tmp_vec.ext_sys_flg == SPT_VEC_SYS_FLAG_DATA)
-				BUG();
+            spt_assert(tmp_vec.ext_sys_flg != SPT_VEC_SYS_FLAG_DATA);
         }
         else
         {
@@ -1019,7 +995,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
                 {
                     vec_free_to_buf(pclst, vecid_s, g_thrd_id);
                 }
-                printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+                spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
                 return SPT_NOMEM;
             }
             pvec_s2->val = 0;        
@@ -1037,8 +1013,7 @@ int do_insert_up_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
     {
         if(tmp_vec.type == SPT_VEC_SIGNPOST)
         {
-           if(tmp_vec.ext_sys_flg == SPT_VEC_SYS_FLAG_DATA)
-			   BUG();
+            spt_assert(tmp_vec.ext_sys_flg != SPT_VEC_SYS_FLAG_DATA);
         }
         pvec_a->down = tmp_rd;
     }   
@@ -1104,8 +1079,8 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
     if(pdh == 0)
     {
         /*申请新块，拆分*/
-        //BUG();
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        //spt_assert(0);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
         return SPT_NOMEM;
     }
@@ -1119,7 +1094,7 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
     if(pvec_b == 0)
     {
         /*yzx释放资源， 申请新块，拆分*/
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
@@ -1136,7 +1111,7 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
     {
         /*yzx释放资源， 申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
         vec_free_to_buf(pclst, vecid_b, g_thrd_id);
@@ -1180,7 +1155,7 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -1203,7 +1178,7 @@ int do_insert_down_via_r(cluster_head_t *pclst, insert_info_t *pinsert, char *ne
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -1276,8 +1251,8 @@ int do_insert_last_down(cluster_head_t *pclst, insert_info_t *pinsert, char *new
     if(pdh == 0)
     {
         /*申请新块，拆分*/
-        //BUG();
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        //spt_assert(0);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
         return SPT_NOMEM;
     }
@@ -1292,7 +1267,7 @@ int do_insert_last_down(cluster_head_t *pclst, insert_info_t *pinsert, char *new
     {
         /*yzx释放资源， 申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
         return SPT_NOMEM;
@@ -1310,7 +1285,7 @@ int do_insert_last_down(cluster_head_t *pclst, insert_info_t *pinsert, char *new
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -1370,8 +1345,8 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
     if(pdh == 0)
     {
         /*申请新块，拆分*/
-        //BUG();
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        //spt_assert(0);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_db);
         return SPT_NOMEM;
     }
@@ -1386,7 +1361,7 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
     {
         /*yzx释放资源， 申请新块，拆分*/
         atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
         spt_set_data_not_free(pdh);
         db_free_to_buf(pclst, dataid, g_thrd_id);
         return SPT_NOMEM;
@@ -1403,7 +1378,7 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
         {
             /*yzx释放资源， 申请新块，拆分*/
             atomic64_add(1,(atomic64_t *)&g_dbg_info.oom_no_vec);
-            printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
+            spt_print("\r\n%d\t%s", __LINE__, __FUNCTION__);
             spt_set_data_not_free(pdh);
             db_free_to_buf(pclst, dataid, g_thrd_id);
             vec_free_to_buf(pclst, vecid_a, g_thrd_id);
@@ -1453,7 +1428,7 @@ int do_insert_up_via_d(cluster_head_t *pclst, insert_info_t *pinsert, char *new_
             if(down_dataid < 0)
             {
                 spt_debug("get_data_id error\r\n");
-                BUG();
+                spt_assert(0);
             }
             pdh = (spt_dh *)db_id_2_ptr(pclst, down_dataid);
             pdh_ext = (spt_dh_ext *)pdh->pdata;
@@ -1656,7 +1631,7 @@ find_lowest_start:
 int find_lowest_data(cluster_head_t *pclst, spt_vec *start_vec)
 {
     spt_vec *pcur, cur_vec;
-    
+
     pcur = start_vec;
     cur_vec.val = pcur->val;
 
@@ -1733,7 +1708,7 @@ int spt_cluster_sort(cluster_head_t *pclst, spt_sort_info *psort)
 //    spt_vec_f st_vec_f;
     spt_dh *pdh;
 
-    stack = (spt_vec **)kmalloc(4096*8*8, GFP_ATOMIC);
+    stack = (spt_vec **)spt_malloc(4096*8*8);
     if(stack == NULL)
     {
         return SPT_ERR;
@@ -1748,7 +1723,7 @@ int spt_cluster_sort(cluster_head_t *pclst, spt_sort_info *psort)
     cur_vec.val = pcur->val;
     if(cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL)
     {
-        printk("cluster is null\r\n");
+        spt_print("cluster is null\r\n");
         return SPT_ERR;
     }
     #if 0
@@ -1834,7 +1809,7 @@ int spt_cluster_sort(cluster_head_t *pclst, spt_sort_info *psort)
         }
     }
 sort_exit:
-    kfree(stack);
+    spt_free(stack);
     return SPT_OK;
 }
 
@@ -2041,7 +2016,7 @@ int divide_sub_cluster(cluster_head_t *pclst, spt_dh_ext *pup)
         qinfo.get_key = plower_clst->get_key;
         if(find_data(plower_clst, &qinfo)!=SPT_OK)
         {
-            BUG();
+            spt_assert(0);
         }
         ins_dvb_id = qinfo.db_id;
         //if(qinfo.data == NULL)
@@ -2274,18 +2249,18 @@ void print_debug_path(int id)
     unsigned char* pfind;
     int i;
     pfind = path_data[id];
-    printk("=======path_data:=======\r\n");
+    spt_print("=======path_data:=======\r\n");
     for(i = 0 ; i < 4096 ;i++)
     {
         if(0 == i%32)
-            printk("\r\n");
-        printk("%02x ",*((unsigned char*)pfind +i));
+            spt_print("\r\n");
+        spt_print("%02x ",*((unsigned char*)pfind +i));
     
     }
-    printk("=======find_path:=======\r\n");
+    spt_print("=======find_path:=======\r\n");
     for(i=0;i<path_index[id]&& i<1024;i++)
     {
-        printk("page:%p startbit:%d len:%d direct:%d\r\n", 
+        spt_print("page:%p startbit:%d len:%d direct:%d\r\n", 
             debug_path[id][i].page,
             debug_path[id][i].startbit,
             debug_path[id][i].len,
@@ -2304,14 +2279,14 @@ void printk_debug_map_cnt(void)
 		{
 			continue;
 		}
-		printk("thread id %d,map cnt is %lld,umap_cnt %lld\r\n",i,map_cnt[i],unmap_cnt[i]);
+		spt_print("thread id %d,map cnt is %lld,umap_cnt %lld\r\n",i,map_cnt[i],unmap_cnt[i]);
 		for(j =0 ;j < map_st[i].idx; j++ )
 		{
-			printk("map line num is %d\r\n",map_st[i].line[j]);
+			spt_print("map line num is %d\r\n",map_st[i].line[j]);
 		}
 		for(j =0 ;j < unmap_st[i].idx; j++ )
 		{
-			printk("umap line num is %d\r\n",unmap_st[i].line[j]);
+			spt_print("umap line num is %d\r\n",unmap_st[i].line[j]);
 		}
 
 	}
@@ -2321,19 +2296,19 @@ void printk_debug_map_cnt_id(int thread_id)
 	int i = thread_id;
 	int j ;
 
-		printk("thread id %d,map cnt is %lld,umap_cnt %lld\r\n",i,map_cnt[i],unmap_cnt[i]);
+		spt_print("thread id %d,map cnt is %lld,umap_cnt %lld\r\n",i,map_cnt[i],unmap_cnt[i]);
 		for(j =0 ;j < map_st[i].idx; j++ )
 		{
-			printk("map line num is %d\r\n",map_st[i].line[j]);
+			spt_print("map line num is %d\r\n",map_st[i].line[j]);
 		}
 		for(j =0 ;j < unmap_st[i].idx; j++ )
 		{
-			printk("umap line num is %d\r\n",unmap_st[i].line[j]);
+			spt_print("umap line num is %d\r\n",unmap_st[i].line[j]);
 		}
 
 }
 //#define DEBUG_FIND_PATH
-extern int thread_map_cnt[64];
+
 /*ret:1查询不到；0删除成功；-1错误*/
 int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
 {
@@ -2363,7 +2338,6 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     }
     map_cnt[g_thrd_id] = unmap_cnt[g_thrd_id] = 0;
     map_st[g_thrd_id].idx = unmap_st[g_thrd_id].idx = 0;
-    thread_map_cnt[g_thrd_id]=0;
 
 //    query_info_t *pqinfo = pquery_info;
     if(pclst->status == SPT_WAIT_AMT)
@@ -2392,8 +2366,6 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
     map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
     map_cnt[g_thrd_id]++;
-    if(map_cnt[g_thrd_id] > map_cnt_max[g_thrd_id])
-        map_cnt_max[g_thrd_id] = map_cnt[g_thrd_id];
     if(pqinfo->get_key_end == NULL)
     {
         finish_key_cb = pclst->get_key_end;
@@ -2409,7 +2381,6 @@ int find_data(cluster_head_t *pclst, query_info_t *pqinfo)
     }
     #endif
     cur_data = SPT_INVALID;
-    debug_refind[g_thrd_id] = 0;
 
 refind_start:
     atomic64_add(1,(atomic64_t *)&g_dbg_info.refind_start);
@@ -2422,11 +2393,6 @@ refind_start:
 #endif    
 refind_forward:
     //debug
-    debug_refind[g_thrd_id]++;
-    if(debug_refind[g_thrd_id] > debug_refind_max[g_thrd_id])
-    {       
-        debug_refind_max[g_thrd_id] = debug_refind[g_thrd_id];
-    }
     if(atomic_read((atomic_t *) &dbg_switch) == 1)
     {
         while(1);
@@ -2536,8 +2502,6 @@ refind_forward:
                     map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
                     map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
                     map_cnt[g_thrd_id]++;
-                    if(map_cnt[g_thrd_id] > map_cnt_max[g_thrd_id])
-                        map_cnt_max[g_thrd_id] = map_cnt[g_thrd_id];                    
                 }
                 else if(cur_data == SPT_NULL)
                 {
@@ -2748,8 +2712,6 @@ refind_forward:
                         map_st[g_thrd_id].line[map_st[g_thrd_id].idx] = __LINE__;
                         map_st[g_thrd_id].idx = (map_st[g_thrd_id].idx+1)&0xffff;
                         map_cnt[g_thrd_id]++;
-                        if(map_cnt[g_thrd_id] > map_cnt_max[g_thrd_id])
-                            map_cnt_max[g_thrd_id] = map_cnt[g_thrd_id];                        
                     }
                     else if(cur_data == SPT_DO_AGAIN)
                     {
@@ -3327,20 +3289,20 @@ refind_forward:
                         }
                         break;
                     case SPT_OP_DELETE:
-#if 1
+#if 0
 spt_debug("=====================================================\r\n");
 spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
             cmpres.pos, cmpres.smallfs, cur_vec.val);
-printk("data_in_tree:%p\r\n", pdh->pdata);
+spt_debug("data_in_tree:%p\r\n", pdh->pdata);
 for(i = 0 ; i < 32 ;i++)
 {
-    printk("%02x ",*((unsigned char*)pcur_data +i));
+    spt_debug("%02x ",*((unsigned char*)pcur_data +i));
 
 }
-printk("data_insert:%p\r\n", pqinfo->data);
+spt_debug("data_insert:%p\r\n", pqinfo->data);
 for(i = 0 ; i < 32 ;i++)
 {
-    printk("%02x ",*((unsigned char*)prdata +i));
+    spt_debug("%02x ",*((unsigned char*)prdata +i));
 
 }
 spt_debug("=====================================================\r\n");
@@ -3445,24 +3407,24 @@ spt_debug("=====================================================\r\n");
                         }
                         break;
                     case SPT_OP_DELETE:
-                        #if 1
+                        #if 0
                         spt_debug("=====================================================\r\n");
                         spt_debug("cmp info,[startbit:%d] [cmp_pos:%d] [small_fs:%d] [cur_vec:%lld]\r\n", startbit, 
                                     cmpres.pos, cmpres.smallfs, cur_vec.val);
-                        printk("data_in_tree:%p\r\n", pdh->pdata);
+                        spt_debug("data_in_tree:%p\r\n", pdh->pdata);
                         for(i = 0 ; i < 4096 ;i++)
                         {
                             if(0 == i%32)
-								printk("\r\n");
-							printk("%02x ",*((unsigned char*)pcur_data +i));
+								spt_debug("\r\n");
+							spt_debug("%02x ",*((unsigned char*)pcur_data +i));
                         
                         }
-                        printk("data_insert:%p\r\n", pqinfo->data);
+                        spt_debug("data_insert:%p\r\n", pqinfo->data);
                         for(i = 0 ; i < 4096 ;i++)
                         {
                             if(0 == i%32)
-								printk("\r\n");
-                            printk("%02x ",*((unsigned char*)prdata +i));
+								spt_debug("\r\n");
+                            spt_debug("%02x ",*((unsigned char*)prdata +i));
                         
                         }
                         spt_debug("=====================================================\r\n");
@@ -3939,9 +3901,6 @@ spt_debug("=====================================================\r\n");
                         pdh2 = (spt_dh *)db_id_2_ptr(pclst, cur_data2);
                         smp_mb();
                         pcur_data2 = pclst->get_key_in_tree(pdh2->pdata);
-                        map_cnt[g_thrd_id]++;
-                        if(map_cnt[g_thrd_id] > map_cnt_max[g_thrd_id])
-                            map_cnt_max[g_thrd_id] = map_cnt[g_thrd_id];                    
                         
                         debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].page = pdh2->pdata;
                         debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].startbit = startbit;
@@ -3949,12 +3908,11 @@ spt_debug("=====================================================\r\n");
                         debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].direct = 0;
                         spt_bit_cpy(path_data[g_thrd_id],pcur_data2,startbit,len);
                         pclst->get_key_in_tree_end(pcur_data2);                        
-                        unmap_cnt[g_thrd_id]++;
                         path_index[g_thrd_id]++;    
                     }
                     else
                     {
-                        printk("\r\n get dataid fail\r\n");
+                        spt_print("\r\n get dataid fail\r\n");
                         debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].page = 0;
                         debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].startbit = startbit;
                         debug_path[g_thrd_id][path_index[g_thrd_id]&0x3ff].len = len;
@@ -4069,7 +4027,7 @@ spt_debug("=====================================================\r\n");
                 cur_vecid = next_vecid;
                 cur_vec.val = next_vec.val;
             }
-            if(fs_pos != startbit) BUG();
+            spt_assert(fs_pos == startbit);
         }
     }
 
@@ -4129,7 +4087,7 @@ spt_debug("=====================================================\r\n");
             }
             else
             {
-                BUG();
+                spt_assert(0);
             }
         }
         pqinfo->db_id = cur_data;
@@ -4164,7 +4122,7 @@ spt_debug("=====================================================\r\n");
             }
             else
             {
-                BUG();
+                spt_assert(0);
             }
         }
         //pqinfo->ref_cnt = va_new;
@@ -4400,7 +4358,7 @@ refind_next:
     else
     {
         spt_debug("find_data err!\r\n");
-        BUG();
+        spt_assert(0);
         return NULL;
     }
 }
@@ -4443,7 +4401,6 @@ char *insert_data(cluster_head_t *pclst, char *pdata)
         return 0;
     }
 }
-
 int delete_data(cluster_head_t *pclst, char *pdata)
 {
     cluster_head_t *pnext_clst;
@@ -4563,7 +4520,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
     }
     
 	plow_clst = plower_clst;
-    pdh_ext = kmalloc(sizeof(spt_dh_ext)+DATA_SIZE,GFP_ATOMIC);
+    pdh_ext = spt_malloc(sizeof(spt_dh_ext)+DATA_SIZE);
     if(pdh_ext == NULL)
     {
         cluster_destroy(pclst);
@@ -4586,7 +4543,7 @@ cluster_head_t *spt_cluster_init(u64 startbit,
         return NULL;
     }
     
-    pdh_ext = kmalloc(sizeof(spt_dh_ext)+DATA_SIZE,GFP_ATOMIC);
+    pdh_ext = spt_malloc(sizeof(spt_dh_ext)+DATA_SIZE);
     if(pdh_ext == NULL)
     {
         cluster_destroy(pclst);
@@ -4613,14 +4570,14 @@ cluster_head_t *spt_cluster_init(u64 startbit,
             return NULL;
         }
         
-        pdh_ext = kmalloc(sizeof(spt_dh_ext),GFP_ATOMIC);
+        pdh_ext = spt_malloc(sizeof(spt_dh_ext));
         if(pdh_ext == NULL)
         {
             cluster_destroy(pclst);
             cluster_destroy(plower_clst);
             return NULL;
         }
-        pdh_ext->data = kmalloc(DATA_SIZE,GFP_ATOMIC);
+        pdh_ext->data = spt_malloc(DATA_SIZE);
         if(pdh_ext->data == NULL)
         {
             cluster_destroy(pclst);
@@ -4712,8 +4669,8 @@ void find_smallfs(u8 *a, s64 len, int align, vec_cmpret_t *result)
             }            
             break;
         default:
-            printk("\n%s\t%d", __FUNCTION__, __LINE__);
-            BUG();
+            spt_print("\n%s\t%d", __FUNCTION__, __LINE__);
+            spt_assert(0);
             
     }
 
@@ -4936,8 +4893,8 @@ int align_compare(u8 *a, u8 *b, s64 len, int align, vec_cmpret_t *result)
             }
             break;
         default:
-            printk("\n%s\t%d", __FUNCTION__, __LINE__);
-            BUG();        
+            spt_print("\n%s\t%d", __FUNCTION__, __LINE__);
+            spt_assert(0);        
     }
 
     if(bitend)
@@ -5251,8 +5208,8 @@ void find_smallfs(u8 *a, s64 len, int align, vec_cmpret_t *result)
              }             
              break;
          default:
-             printk("\n%s\t%d", __FUNCTION__, __LINE__);
-             BUG();
+             spt_print("\n%s\t%d", __FUNCTION__, __LINE__);
+             spt_assert(0);
              
      }
  
@@ -5395,8 +5352,8 @@ perbyte:case 1:
             }
             break;
         default:
-            printk("\n%s\t%d", __FUNCTION__, __LINE__);
-            BUG();        
+            spt_print("\n%s\t%d", __FUNCTION__, __LINE__);
+            spt_assert(0);        
     }
 
     if(bitend)
@@ -5919,121 +5876,6 @@ int diff_identify(char *a, char *b,u64 start, u64 len, vec_cmpret_t *result)
 }
 #endif
 
-void spt_threadinfo_show(void)
-{
-    printk("tick:%d\tblackmap:%lld\tonlinemap:%lld\r\n",g_thrd_h->tick,g_thrd_h->black_white_map, g_thrd_h->online_map);
-}
-spt_thrd_t *spt_thread_init(int thread_num)
-{
-    g_thrd_h = kmalloc(sizeof(spt_thrd_t),GFP_ATOMIC);
-    if(g_thrd_h == NULL)
-    {
-        spt_debug("OOM\r\n");
-        return NULL;
-    }
-    g_thrd_h->thrd_total= thread_num;
-    g_thrd_h->black_white_map = SPT_BWMAP_ALL_ONLINE;
-    g_thrd_h->online_map = 0;
-    g_thrd_h->tick = 0;
-   
-    return g_thrd_h;
-}
-
-void spt_atomic64_set_bit(int nr, atomic64_t *v)
-{
-    u64 tmp,old_val, new_val;
-
-    tmp = 1ull<<nr;
-    do
-    {
-        old_val = atomic64_read(v);
-        new_val = tmp|old_val;
-
-    }while(old_val != atomic64_cmpxchg(v, old_val, new_val));
-
-    return;
-}
-/*返回清除后的值*/
-u64 spt_atomic64_clear_bit_return(int nr, atomic64_t *v)
-{
-    u64 tmp,old_val, new_val;
-
-    tmp = ~(1ull<<nr);
-    do
-    {
-        old_val = atomic64_read(v);
-        new_val = tmp&old_val;
-
-    }while(old_val != atomic64_cmpxchg(v, old_val, new_val));
-
-    return new_val;
-}
-
-u64 tick_debug[64] = {0};
-int spt_thread_start(int thread)
-{
-#if 0    
-    int cnt,ret;
-    cnt = rsv_list_fill_cnt(pgclst, g_thrd_id);
-    if(cnt > 0)
-    {
-        ret = fill_in_rsv_list(pgclst, cnt, g_thrd_id);
-        if(ret != SPT_OK)
-            return ret;
-   }
-#endif 
-	if(tick_debug[thread]!=0 || thread != g_thrd_id)
-		BUG();
-	tick_debug[thread] = g_thrd_id + 1;
-    spt_atomic64_set_bit(thread, (atomic64_t *)&g_thrd_h->online_map);
-    smp_mb();
-    return SPT_OK;
-}
-
-void spt_thread_exit(int thread)
-{
-    u64 olmap, bwmap, new_val;
-
-	if(tick_debug[thread] ==0 || tick_debug[thread] != g_thrd_id + 1)
-	{
-		printk("$$$$$$thread:%d g_thrd_id:%d, tick_debug:%d\r\n", thread, g_thrd_id, tick_debug[thread]);
-		BUG();
-	}
-	tick_debug[thread] = 0;
-    smp_mb();
-    olmap = spt_atomic64_clear_bit_return(thread,(atomic64_t *)&g_thrd_h->online_map);
-    do
-    {
-        bwmap = atomic64_read((atomic64_t *)&g_thrd_h->black_white_map);
-        if(bwmap == 0)
-            return;
-        new_val = bwmap & olmap;
-    }while(bwmap != atomic64_cmpxchg((atomic64_t *)&g_thrd_h->black_white_map, bwmap, new_val));
-    if(new_val == 0)
-    {
-        atomic_add(1, (atomic_t *)&g_thrd_h->tick);
-        if(0 != atomic64_cmpxchg((atomic64_t *)&g_thrd_h->black_white_map, 
-                                    0, SPT_BWMAP_ALL_ONLINE))
-        {
-            spt_debug("@@@@@@@@@@@@@@@@@@Err\r\n");
-            BUG();
-        }
-    }
-    return;
-}
-
-void spt_thread_wait(int n, int thread)
-{
-    u32 tick;
-    tick = atomic_read((atomic_t *)&g_thrd_h->tick);
-    while(atomic_read((atomic_t *)&g_thrd_h->tick) - tick < n)
-    {
-        spt_thread_start(thread);
-        spt_thread_exit(thread);
-    }
-    return;
-}
-
 void debug_print_2(u8 *p, u32 size)
 {
     u8 data, k;
@@ -6044,12 +5886,12 @@ void debug_print_2(u8 *p, u32 size)
         for (i = 7; i >= 0; i--)
         {
             if(data & (1 << i))
-                printk("1");
+                spt_print("1");
             else
-                printk("0");
+                spt_print("0");
         }
     }
-    printk("\r\n");
+    spt_print("\r\n");
     return;
 }
 
@@ -6106,7 +5948,7 @@ void debug_get_final_vec(cluster_head_t *pclst, spt_vec* pvec, spt_vec_f *pvec_f
 
 void debug_vec_print(spt_vec_f *pvec_f, int vec_id)
 {
-    printk("{down:%d, right:%d, pos:%lld, data:%d}[%d]\r\n",pvec_f->down, pvec_f->right, pvec_f->pos, pvec_f->data, vec_id);
+    spt_print("{down:%d, right:%d, pos:%lld, data:%d}[%d]\r\n",pvec_f->down, pvec_f->right, pvec_f->pos, pvec_f->data, vec_id);
     return;
 }
 
@@ -6116,7 +5958,7 @@ void debug_id_vec_print(cluster_head_t *pclst, int id)
 }
 void debug_dh_ext_print(spt_dh_ext *p)
 {
-    printk("hang_vec_id:%d\tlower_cluster:%p", p->hang_vec, p->plower_clst);
+    spt_print("hang_vec_id:%d\tlower_cluster:%p", p->hang_vec, p->plower_clst);
 }
 void debug_data_print(char *pdata)
 {
@@ -6127,13 +5969,13 @@ void debug_data_print(char *pdata)
     {
         if(i%8 == 0)
         {
-            printk("\r\n");
+            spt_print("\r\n");
         }
-        printk("%02x ", *p);
+        spt_print("%02x ", *p);
     }
-    printk("\r\n");
+    spt_print("\r\n");
 #endif    
-	printk("print data addr is %p\r\n",pdata);
+	spt_print("print data addr is %p\r\n",pdata);
 return;
 }
 void debug_pdh_data_print(cluster_head_t *pclst, spt_dh *pdh)
@@ -6160,7 +6002,7 @@ void debug_travl_stack_destroy(spt_stack *p_stack)
     while(!spt_stack_empty(p_stack))
     {
         node = debug_travl_stack_pop(p_stack);
-        kfree(node);
+        spt_free(node);
     }
     spt_stack_destroy(p_stack);
     return;
@@ -6170,10 +6012,10 @@ void debug_travl_stack_destroy(spt_stack *p_stack)
 void debug_travl_stack_push(spt_stack *p_stack, spt_vec_f *pvec_f, long long signpost)
 {
     travl_info *node;
-    node = (travl_info *)kmalloc(sizeof(travl_info),GFP_ATOMIC);
+    node = (travl_info *)spt_malloc(sizeof(travl_info));
     if(node == NULL)
     {
-        printk("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
+        spt_print("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
         debug_travl_stack_destroy(p_stack);
         return;
     }
@@ -6210,7 +6052,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
     debug_get_final_vec(pclst, pcur, &st_vec_f, signpost, cur_data, SPT_RIGHT);
     if(pcur->down == SPT_NULL && pcur->rd == SPT_NULL)
     {
-        printk("cluster is null\r\n");
+        spt_print("cluster is null\r\n");
         debug_travl_stack_destroy(pstack);
         return;
     }
@@ -6226,7 +6068,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
 #if 0
     if(st_vec_r.pos == 0)
     {
-        printk("only one vec in this cluster\r\n");
+        spt_print("only one vec in this cluster\r\n");
         debug_vec_print(&st_vec_r, cur_vec);
         debug_data_print(pcur_data);
         return;        
@@ -6278,7 +6120,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
                 #if 0
                 if(memcmp(data, pcur_data, DATA_SIZE)!=0)
                 {
-                    printk("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
+                    spt_print("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
                 }
                 #endif
                 //pdh = (spt_dh *)(pcur_data-sizeof(spt_dh));
@@ -6300,9 +6142,9 @@ void debug_cluster_travl(cluster_head_t *pclst)
 					{
 						if(0 == (i %32 ))
 						{
-							printk("\r\n");
+							spt_print("\r\n");
 						}
-						printk("%02x ",*(data_mem+i));
+						spt_print("%02x ",*(data_mem+i));
 
 					}
 					kunmap(data);
@@ -6318,9 +6160,9 @@ void debug_cluster_travl(cluster_head_t *pclst)
                 pnode = debug_travl_stack_pop(pstack);
                 if(pnode == (travl_info *)-1)
                 {
-                    printk("\r\n");
+                    spt_print("\r\n");
                     debug_travl_stack_destroy(pstack);
-                    printk("\r\n@@@@@@@@ data_total:%d\tref_total:%d@@@@@@@@\r\n", 
+                    spt_print("\r\n@@@@@@@@ data_total:%d\tref_total:%d@@@@@@@@\r\n", 
                     pclst->data_total, ref_total);                    
                     return;
                 }
@@ -6348,18 +6190,18 @@ void debug_cluster_travl(cluster_head_t *pclst)
                     pdh = (spt_dh *)db_id_2_ptr(pclst, cur_data);
                     pcur_data = pdh->pdata;
                     ref_total += pdh->ref;
-                    printk("\r\n@@data[%p],bit:%lld\r\n", pcur_data, st_vec_f.pos);
+                    spt_print("\r\n@@data[%p],bit:%lld\r\n", pcur_data, st_vec_f.pos);
                     debug_vec_print(&st_vec_f, cur_vecid);
                     debug_travl_stack_push(pstack,&st_vec_f, signpost);
-                    kfree(pnode);
+                    spt_free(pnode);
                     break;
                 }
-                kfree(pnode);
+                spt_free(pnode);
             }
         }
     }
     debug_travl_stack_destroy(pstack);
-    printk("\r\n@@@@@@@@ data_total:%d\tref_total:%d@@@@@@@@\r\n", 
+    spt_print("\r\n@@@@@@@@ data_total:%d\tref_total:%d@@@@@@@@\r\n", 
     pclst->data_total, ref_total);
     return;
 }
@@ -6398,7 +6240,7 @@ spt_sort_info *debug_statistic2(cluster_head_t *pclst)
     cluster_head_t *plower_clst;
     char *pcur_data = NULL;
 
-    stack = (spt_vec **)kmalloc(4096*8*8,GFP_ATOMIC);
+    stack = (spt_vec **)spt_malloc(4096*8*8);
     if(stack == NULL)
     {
         return 0;
@@ -6413,7 +6255,7 @@ spt_sort_info *debug_statistic2(cluster_head_t *pclst)
     cur_vec.val = pcur->val;
     if(cur_vec.down == SPT_NULL && cur_vec.rd == SPT_NULL)
     {
-        printk("cluster is null\r\n");
+        spt_print("cluster is null\r\n");
         return NULL;
     }
     #if 0
@@ -6470,10 +6312,6 @@ spt_sort_info *debug_statistic2(cluster_head_t *pclst)
                     lower_ref += debug_statistic2(plower_clst);
 					data_total += plower_clst->data_total;
 				}
-				else
-				{
-					slice_data_cmp(pcur_data,__LINE__);
-				}
 
                 //debug_pdh_data_print(pclst, pdh);            
             }
@@ -6511,7 +6349,7 @@ spt_sort_info *debug_statistic2(cluster_head_t *pclst)
         }
     }
 sort_exit:    
-    kfree(stack);
+    spt_free(stack);
     if(!pclst->is_bottom)
     {
         spt_debug("\r\n lower_total_ref:%d\r\n", lower_ref);
@@ -6618,9 +6456,7 @@ int debug_statistic(cluster_head_t *pclst)
             spt_thread_exit(g_thrd_id);
             if(pcur_data != NULL)//head->right为空时，pcur_data等于空
             {
-				//slice_data_cmp(pcur_data);    
-			
-#if 0
+                #if 0
                 if(memcmp(data, pcur_data, DATA_SIZE)!=0)
                 {
                     printf("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
@@ -6637,11 +6473,7 @@ int debug_statistic(cluster_head_t *pclst)
                     buf_vec_total += debug_thrd_vec_statistic(plower_clst);
                     lower_ref += debug_statistic(plower_clst);
 					data_total += plower_clst->data_total;
-				}
-				else
-				{
-					slice_data_cmp(pcur_data,__LINE__);
-				}
+                }
             }
             
             if(spt_stack_empty(pstack))
@@ -6688,10 +6520,10 @@ int debug_statistic(cluster_head_t *pclst)
                     pcur_data = pdh->pdata;
                     ref_total += pdh->ref;
                     debug_travl_stack_push(pstack,&st_vec_f, signpost);
-                    kfree(pnode);
+                    spt_free(pnode);
                     break;
                 }
-                kfree(pnode);
+                spt_free(pnode);
             }
         }
     }
@@ -6852,10 +6684,10 @@ void debug_buf_free(cluster_head_t *pclst)
                     pcur_data = pdh->pdata;
                     ref_total += pdh->ref;
                     debug_travl_stack_push(pstack,&st_vec_f, signpost);
-                    kfree(pnode);
+                    spt_free(pnode);
                     break;
                 }
-                kfree(pnode);
+                spt_free(pnode);
             }
         }
     }
@@ -6867,7 +6699,7 @@ void debug_cluster_info_show(cluster_head_t *pclst)
     int data_cnt,vec_cnt;
     data_cnt = debug_thrd_data_statistic(pclst);
     vec_cnt = debug_thrd_vec_statistic(pclst);
-    printk("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d [data_used]:%d\r\n", 
+    spt_debug("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d [data_used]:%d\r\n", 
     pclst, data_cnt, vec_cnt, pclst->used_vec_cnt, pclst->used_dblk_cnt);
 }
 
@@ -6877,15 +6709,15 @@ void debug_lower_cluster_info_show(void)
     cluster_head_t *pclst;
     int i=0;
 
-    printk("\r\n==============cluster info show==============================\r\n");
+    spt_debug("\r\n==============cluster info show==============================\r\n");
     list_for_each(list_itr, &pgclst->c_list)
     {
         pclst = list_entry(list_itr, struct cluster_head, c_list);
-        printk("[cluster %d]",i);
+        spt_debug("[cluster %d]",i);
         debug_cluster_info_show(pclst);
         i++;
     }
-    printk("\r\n==============cluster info end==============================\r\n");
+    spt_debug("\r\n==============cluster info end==============================\r\n");
 }
 
 int debug_upper_delete(cluster_head_t *pclst, char *pdata)
@@ -6899,7 +6731,7 @@ int debug_upper_insert(cluster_head_t *pclst, char *pdata)
 {
     spt_dh_ext *pdh_ext;
 
-    pdh_ext = (spt_dh_ext *)kmalloc(sizeof(spt_dh_ext)+DATA_SIZE,GFP_ATOMIC);
+    pdh_ext = (spt_dh_ext *)spt_malloc(sizeof(spt_dh_ext)+DATA_SIZE);
 
     pdh_ext->data = (char *)(pdh_ext + 1);
 //    pdh_ext->plower_clst = (char *)*pdata;
@@ -6912,14 +6744,14 @@ int debug_upper_insert(cluster_head_t *pclst, char *pdata)
 char *debug_insert(cluster_head_t *pclst, char *pdata)
 {
     char *p, *pret;
-    p = (char *)kmalloc(DATA_SIZE,GFP_ATOMIC);
+    p = (char *)spt_malloc(DATA_SIZE);
 
     memcpy(p, pdata, DATA_SIZE);
 
     pret = insert_data(pclst, p);
     if(pret == 0 || pret != p)
     {
-        kfree(p);
+        spt_free(p);
     }
     return pret;
 }
@@ -6927,10 +6759,10 @@ char *debug_insert(cluster_head_t *pclst, char *pdata)
 int debug_gd_init(void)
 {
     int i;
-    gd = (u64 *)kmalloc(sizeof(u64)*TEST_DATA_MAX,GFP_ATOMIC);
+    gd = (u64 *)spt_malloc(sizeof(u64)*TEST_DATA_MAX);
     if(gd == NULL)
     {
-        spt_debug("gd malloc return NULL\r\n");
+        spt_debug("gd spt_malloc return NULL\r\n");
         return SPT_ERR;
     }
     gd[0] = gd[1] = 1;
@@ -6967,7 +6799,7 @@ void debug_sort(cluster_head_t *pclst)
 }
 void debug_vec_print(spt_vec_r *pvec_r, int vec_id)
 {
-    printk("{down:%d, right:%d, pos:%lld, data:%d}[%d]\r\n",pvec_r->down, pvec_r->right, pvec_r->pos, pvec_r->data, vec_id);
+    spt_debug("{down:%d, right:%d, pos:%lld, data:%d}[%d]\r\n",pvec_r->down, pvec_r->right, pvec_r->pos, pvec_r->data, vec_id);
     return;
 }
 
@@ -6984,11 +6816,11 @@ void debug_data_print(u8 *pdata)
     {
         if(i%8 == 0)
         {
-            printk("\r\n");
+            spt_debug("\r\n");
         }
-        printk("%02x ", *p);
+        spt_debug("%02x ", *p);
     }
-    printk("\r\n");
+    spt_debug("\r\n");
     return;
 }
 void debug_id_data_print(cluster_head_t *pclst, int id)
@@ -7011,7 +6843,7 @@ void debug_travl_stack_destroy(spt_stack *p_stack)
     while(!spt_stack_empty(p_stack))
     {
         node = debug_travl_stack_pop(p_stack);
-        free(node);
+        spt_free(node);
     }
     spt_stack_destroy(p_stack);
     return;
@@ -7021,10 +6853,10 @@ void debug_travl_stack_push(spt_stack *p_stack, spt_vec *pvec_r, int
 direct)
 {
     travl_info *node;
-    node = (travl_info *)malloc(sizeof(travl_info));
+    node = (travl_info *)spt_malloc(sizeof(travl_info));
     if(node == NULL)
     {
-        printk("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
+        spt_debug("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
         debug_travl_stack_destroy(p_stack);
         return;
     }
@@ -7057,7 +6889,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
     
     if(st_vec_r.down == SPT_NULL && st_vec_r.right == SPT_NULL)
     {
-        printk("cluster is null\r\n");
+        spt_debug("cluster is null\r\n");
         return;
     }
     rank = pclst->used_dblk_cnt;
@@ -7070,7 +6902,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
 #if 0
     if(st_vec_r.pos == 0)
     {
-        printk("only one vec in this cluster\r\n");
+        spt_debug("only one vec in this cluster\r\n");
         debug_vec_print(&st_vec_r, cur_vec);
         debug_data_print(pcur_data);
         return;        
@@ -7104,7 +6936,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
             {
                 if(memcmp(data, pcur_data, DATA_SIZE)!=0)
                 {
-                    printk("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
+                    spt_debug("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
                 }
                 prsv = (u16 *)(pcur_data + DATA_SIZE);
                 *prsv = rank;
@@ -7113,7 +6945,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
 
                 if(st_vec_r.down != SPT_NULL)
                 {
-                    printk("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
+                    spt_debug("\r\nErr    %d\t%s", __LINE__, __FUNCTION__);
                 }
             }
             
@@ -7126,7 +6958,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
                 pnode = debug_travl_stack_pop(pstack);
                 if(pnode == (travl_info *)-1)
                 {
-                    printk("\r\n");
+                    spt_debug("\r\n");
                     return;
                 }
                 if(pnode->direction == SPT_RIGHT && pnode->vec_r.down != SPT_NULL)
@@ -7140,7 +6972,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
                     get_final_vec(pclst, pcur_vec, &st_vec_r, -1);
                     cur_data = st_vec_r.data;
                     pcur_data = (u8 *)db_id_2_ptr(pclst, cur_data);
-                    printk("\r\n@@data[%p],bit:%lld\r\n", pcur_data, bit);
+                    spt_debug("\r\n@@data[%p],bit:%lld\r\n", pcur_data, bit);
                     debug_vec_print(&st_vec_r, cur_vec);
                     debug_travl_stack_push(pstack,&st_vec_r, SPT_RIGHT);                    
                     pos = st_vec_r.pos;
@@ -7155,7 +6987,7 @@ void debug_cluster_travl(cluster_head_t *pclst)
                 else
                 {
                     bit -= pnode->vec_r.pos;
-                    kfree(pnode);
+                    spt_free(pnode);
                 }
             }
         }
@@ -7218,7 +7050,7 @@ void debug_cluster_outer_prior_travl(cluster_head_t * pclst)
 
     if(st_vec_r.down == SPT_NULL && st_vec_r.right == SPT_NULL)
     {
-        printk("cluster is null\r\n");
+        spt_debug("cluster is null\r\n");
         return;
     }
     
@@ -7241,10 +7073,10 @@ void debug_cluster_outer_prior_travl(cluster_head_t * pclst)
         if(st_vec_r.right != SPT_NULL)
         {
             bit += st_vec_r.pos;
-            pnode = (travl_outer_info *)kmalloc(sizeof(travl_outer_info),GFP_ATOMIC);
+            pnode = (travl_outer_info *)spt_malloc(sizeof(travl_outer_info));
             if(pnode == NULL)
             {
-                printk("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
+                spt_debug("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
                 debug_outer_q_destroy(&tq);
                 fclose(fp);
                 return;
@@ -7276,7 +7108,7 @@ void debug_cluster_outer_prior_travl(cluster_head_t * pclst)
         j += sprintf(buf+j, "%lld\t%d\r\n", bit, rank);
         cur_vec = pnode->cur;
         cur_data = pnode->data;
-        kfree(pnode);
+        spt_free(pnode);
         while(cur_vec != SPT_NULL)
         {
             pcur_vec = (spt_vec *)vec_id_2_ptr(pclst, cur_vec);
@@ -7288,10 +7120,10 @@ void debug_cluster_outer_prior_travl(cluster_head_t * pclst)
             if(st_vec_r.right != SPT_NULL)
             {
                 bit += st_vec_r.pos;
-                pnode = (travl_outer_info *)kmalloc(sizeof(travl_outer_info),GFP_ATOMIC);
+                pnode = (travl_outer_info *)spt_malloc(sizeof(travl_outer_info));
                 if(pnode == NULL)
                 {
-                    printk("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
+                    spt_debug("\r\nOUT OF MEM        %d\t%s", __LINE__, __FUNCTION__);
                     debug_outer_q_destroy(&tq);
                     fclose(fp);
                     return;
@@ -7335,7 +7167,7 @@ char *test_read_test_case(char *file_name)
     fseek(fp,0L,SEEK_END);
     flen=ftell(fp); 
 
-    data_buf = (char *)kmalloc(flen,GFP_ATOMIC);
+    data_buf = (char *)spt_malloc(flen);
     if(data_buf == NULL)
     {
         fclose(fp);
@@ -7346,407 +7178,4 @@ char *test_read_test_case(char *file_name)
     return data_buf;
 }
 #endif
-
-char *acmp;
-char *bbcmp;
-vec_cmpret_t *rcmp;
-
-int test_init(void)
-{
-    int i=0;
-
-    *(acmp+i)=0x11;i++;
-    *(acmp+i)=0x12;i++;
-    *(acmp+i)=0x13;i++;
-    *(acmp+i)=0x14;i++;
-    *(acmp+i)=0x15;i++;
-    *(acmp+i)=0x16;i++;
-    *(acmp+i)=0x17;i++;
-    *(acmp+i)=0x18;i++;
-
-    *(acmp+i)=0xf0;i++;
-    *(acmp+i)=0xf1;i++;
-    *(acmp+i)=0xf2;i++;
-    *(acmp+i)=0xf3;i++;
-    *(acmp+i)=0xf4;i++;
-    *(acmp+i)=0xf5;i++;
-    *(acmp+i)=0xf6;i++;
-    *(acmp+i)=0xf7;i++;
-
-    memcpy(bbcmp, acmp, 16);
-
-    *(bbcmp+8)=0x0;
-    *(bbcmp+9)=0x0;
-    *(bbcmp+10)=0x0;
-    *(bbcmp+11)=0x0;
-    *(bbcmp+12)=0x6;
-
-    return 0;
-}
-
-#if 0
-int main()
-{
-    //    int flag = 1;
-    //    spt_vec_t_r tmp_vec_r={5,10,4,65535};
-    //    spt_vec_t *pvec_a;0x123406789abcedf; 0x12345678abcedf
-    //    int vec_a;
-        unsigned long long indata = 0x123406789abcedf;
-    //    unsigned long long deldata;
-
-#if 1
-    acmp = (char *)malloc(4096);
-    bbcmp = (char *)malloc(4096);
-    rcmp = (vec_cmpret_t *)malloc(sizeof(vec_cmpret_t));
-    if(acmp == NULL || bbcmp == NULL || rcmp == NULL)
-    {
-        printk("\r\n@@@@@@@@@@");
-        return -1;
-    }
-
-    test_init();
-#endif
-
-
-    pgclst = cluster_init();
-    if(pgclst == NULL)
-    
-        assert(0);
-        printk("\r\n%d\t%s", __LINE__, __FUNCTION__);
-        return 1;
-    }
-
-    while(1)
-    {
-      //  sleep(2);
-        insert_data(&pgclst,(char *)&indata);
-        debug_cluster_travl(pgclst);        
-    }
-
-    return 0;
-}
-
-//#include <stdio.h>
-
-u64 gdata;
-query_info_t g_qinfo = {0};
-#if 0
-void *spt_thread(void *arg)
-{
-    cpu_set_t mask;
-    int i,j, ret;
-//    u64 order_id;
-//    spt_vec *pvec;
-    //spt_vec *pvec, *pid_2_ptr;
-    //spt_dh *pdb, *pdbid_2_ptr;
-    
-//    u64 start, end;
-    i = (long)arg;
-
-    g_thrd_id = i;
-    CPU_ZERO(&mask); 
-    CPU_SET(i,&mask);
-
-    if (sched_setaffinity(0, sizeof(mask), &mask) == -1)
-    {
-        printk("warning: could not set CPU affinity, continuing...\n");
-    }
-#if   0  
-    gdata = 0xee;
-    pvec = (spt_vec *)vec_id_2_ptr(pgclst, pgclst->vec_head);
-    g_qinfo.op = SPT_OP_INSERT;
-    g_qinfo.signpost = 0;
-    g_qinfo.start_vec = pvec;
-    g_qinfo.endbit = DATA_BIT_MAX+1;
-    g_qinfo.data = (char *)&gdata;
-#endif
-    printk("writefn%d,start\n",i);
-//    spt_thread_start();
-#if 0
-    buf = (int *)malloc(4*1000000);
-    if(buf == NULL)
-        spt_debug("OOM\r\n");
-
-    for(order_id=0;order_id<100;order_id ++)
-    {
-        #if 0
-        for(i=0;i<10000;i++)
-        {
-            vec = vec_alloc_combo(&pgclst, &pvec);
-            if(pvec != NULL)
-            {
-                pid_2_ptr = (spt_vec *)vec_id_2_ptr(pgclst, vec);
-                if(pid_2_ptr != pvec)
-                {
-                    spt_debug("vec:%d pvec:%p pid_2_ptr:%p\r\n", vec,pvec,pid_2_ptr);
-                }
-                buf[i] = vec;
-            }
-
-        }
-        for(i=0;i<10000;i++)
-        {
-            vec = buf[i];
-            vec_free_to_buf(pgclst, vec, g_thrd_id);
-        }
-        #else
-        for(i=0;i<100000;i++)
-        {
-            db = db_alloc(&pgclst, (char **)&pdb);
-            if(pdb != NULL)
-            {
-                pdbid_2_ptr = (spt_dh *)db_id_2_ptr(pgclst, db);
-                if(pdbid_2_ptr != pdb)
-                {
-                    spt_debug("db:%d pdb:%p pdbid_2_ptr:%p\r\n", db,pdb,pdbid_2_ptr);
-                }
-                buf[i] = db;
-            }
-
-        }
-        for(i=0;i<100000;i++)
-        {
-            db = buf[i];
-            db_free_to_buf(pgclst, db);
-        }
-
-        #endif
-    }
-#endif
-
-    for(i=0;i<100000;i++)
-    {
-        while(SPT_OK != spt_thread_start(g_thrd_id))
-        {
-            sleep(1);
-        }
-        for(j=0;j<DBG_DATA_NUM;j++)
-        {
-            if(rsv_list_fill_cnt(pgclst, g_thrd_id) > 0)
-            {
-                spt_debug("@@@@@@@@@@@\r\n");
-                while(1);
-            }
-            ret = insert_data(pgclst, (char *)&g_data[j], spt_bottom_get_key);
-            if(ret == SPT_OK)
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.insert_ok);
-            }
-            else
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.insert_fail);
-                if(ret == SPT_WAIT_AMT)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_wait);
-                    goto thread_exit;
-                }
-                if(ret == SPT_NOMEM)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_nomem);
-                    goto thread_exit;
-                }                
-            }
-        }
-        #if 1
-        for(j=0;j<DBG_DATA_NUM;j++)
-        {
-            if(rsv_list_fill_cnt(pgclst, g_thrd_id) > 0)
-            {
-                spt_debug("@@@@@@@@@@@\r\n");
-                while(1);
-            }        
-            ret = delete_data(pgclst, (char *)&g_data[j], spt_bottom_get_key);
-            if(ret == SPT_OK)
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.delete_ok);
-            }
-            else
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.delete_fail);
-                if(ret == SPT_WAIT_AMT)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_wait);
-                    goto thread_exit;
-                }
-                if(ret == SPT_NOMEM)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_nomem);
-                    goto thread_exit;
-                }                
-            }
-        }
-        #endif
-thread_exit:
-        spt_thread_exit(g_thrd_id);
-    }
-//    spt_thread_exit(g_thrd_id);
-    spt_debug("test%d done\r\n", g_thrd_id);
-    while(1)
-    {
-
-    }
-    return 0;    
-}
-
-void *spt_thread(void *arg)
-{
-    cpu_set_t mask;
-    int i,j, ret;
-    char *pret;
-//    u64 order_id;
-//    spt_vec *pvec;
-    //spt_vec *pvec, *pid_2_ptr;
-    //spt_dh *pdb, *pdbid_2_ptr;
-    
-//    u64 start, end;
-    i = (long)arg;
-
-    g_thrd_id = i;
-    CPU_ZERO(&mask); 
-    CPU_SET(i,&mask);
-
-    if (sched_setaffinity(0, sizeof(mask), &mask) == -1)
-    {
-        printk("warning: could not set CPU affinity, continuing...\n");
-    }
-    printk("writefn%d,start\n",i);
-//    spt_thread_start();
-
-    for(i=0;i<100000;i++)
-    {
-        spt_thread_start(g_thrd_id);
-        for(j=0;j<TEST_DATA_MAX;j++)
-        {
-insert_again:            
-            pret = debug_insert(pgclst, (char *)&gd[j]);
-            if(pret != NULL)
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.insert_ok);
-            }
-            else
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.insert_fail);
-                ret = spt_get_errno();
-                if(ret == SPT_MASKED)
-                {
-                    spt_thread_exit(g_thrd_id);
-                    spt_thread_start(g_thrd_id);
-                    goto insert_again;
-                }
-                if(ret == SPT_WAIT_AMT)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_wait);
-                    spt_thread_exit(g_thrd_id);
-                    spt_thread_start(g_thrd_id);
-                    goto insert_again;
-                }
-                if(ret == SPT_NOMEM)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_nomem);
-                    spt_thread_exit(g_thrd_id);
-                    goto thread_exit;
-                }                
-            }
-        }
-        #if 0
-        for(j=0;j<DBG_DATA_NUM;j++)
-        {
-            ret = delete_data(pgclst, (char *)&gd[j], spt_bottom_get_key);
-            if(ret == SPT_OK)
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.delete_ok);
-            }
-            else
-            {
-                atomic64_add(1,(atomic64_t *)&g_dbg_info.delete_fail);
-                if(ret == SPT_WAIT_AMT)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_wait);
-                    goto thread_exit;
-                }
-                if(ret == SPT_NOMEM)
-                {
-                    atomic64_add(1,(atomic64_t *)&g_dbg_info.ret_nomem);
-                    spt_thread_exit(g_thrd_id);
-                    goto thread_exit;
-                }                
-            }
-        }
-        #endif
-        spt_thread_exit(g_thrd_id);
-    }
-thread_exit:
-    spt_debug("test%d done\r\n", g_thrd_id);
-    while(1)
-    {
-
-    }
-    return 0;    
-}
-
-#endif
-
-#if 0
-int main()
-{
-    long num, thread_num;
-    int err;
-    pthread_t ntid;
-    cpu_set_t mask;
-
-    CPU_ZERO(&mask); 
-    thread_num = 3;
-    g_thrd_id = thread_num-1;
-    CPU_SET(thread_num, &mask);
-
-    pgclst = spt_cluster_init(0,DATA_BIT_MAX, thread_num, 
-                              spt_bottom_get_key,
-                              default_end_get_key,
-                              free_data,
-                              spt_bottom_construct_data);
-    if(pgclst == NULL)
-    {
-        spt_debug("cluster_init err\r\n");
-        return 1;
-    }
-//    pgclst->freedata = free_data;
-
-    g_thrd_h = spt_thread_init(thread_num);
-    if(g_thrd_h == NULL)
-    {
-        spt_debug("spt_thread_init err\r\n");
-        return 1;
-    }
-    //test_vec_alloc_n_times(&pgclst);
-//    spt_first_level_clst_init(0, 4, thread_num);
-//    debug_insert_all();
-    debug_gd_init();
-
-
-    if (sched_setaffinity(0, sizeof(mask), &mask) == -1)
-    {
-        printk("warning: could not set CPU affinity, continuing...\n");
-    }
-
-#if 1
-    for(num=0; num <thread_num-1; num++)
-    {
-        err = pthread_create(&ntid, NULL, spt_thread, (void *)num);
-        if (err != 0)
-            printk("can't create thread: %s\n", strerror(err));
-    }
-#endif
-
-    while(1)
-    {
-        //sleep(1);
-        spt_divided_scan(pgclst);
-    }
-    
-    return 0;
-}
-#endif
-#endif
-
-
 
