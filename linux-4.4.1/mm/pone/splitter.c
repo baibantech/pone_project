@@ -6699,7 +6699,7 @@ void debug_cluster_info_show(cluster_head_t *pclst)
     int data_cnt,vec_cnt;
     data_cnt = debug_thrd_data_statistic(pclst);
     vec_cnt = debug_thrd_vec_statistic(pclst);
-    spt_debug("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d [data_used]:%d\r\n", 
+    spt_print("%p [data_buf]:%d [vec_buf]:%d [vec_used]:%d [data_used]:%d\r\n", 
     pclst, data_cnt, vec_cnt, pclst->used_vec_cnt, pclst->used_dblk_cnt);
 }
 
@@ -6709,15 +6709,15 @@ void debug_lower_cluster_info_show(void)
     cluster_head_t *pclst;
     int i=0;
 
-    spt_debug("\r\n==============cluster info show==============================\r\n");
+    spt_print("\r\n==============cluster info show==============================\r\n");
     list_for_each(list_itr, &pgclst->c_list)
     {
         pclst = list_entry(list_itr, struct cluster_head, c_list);
-        spt_debug("[cluster %d]",i);
+        spt_print("[cluster %d]",i);
         debug_cluster_info_show(pclst);
         i++;
     }
-    spt_debug("\r\n==============cluster info end==============================\r\n");
+    spt_print("\r\n==============cluster info end==============================\r\n");
 }
 
 int debug_upper_delete(cluster_head_t *pclst, char *pdata)
